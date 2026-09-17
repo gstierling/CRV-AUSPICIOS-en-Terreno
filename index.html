@@ -119,9 +119,9 @@
   .crv-div-icon{background:transparent;border:none;}
   .marker-wrap{display:flex;align-items:center;}
   .marker-pin{
-    width:18px;height:18px;border-radius:50% 50% 50% 0;
+    width:36px;height:36px;border-radius:50% 50% 50% 0;
     transform:rotate(-45deg);
-    border:2px solid #fff;
+    border:3px solid #fff;
     box-shadow:0 1px 4px rgba(0,0,0,.5);
   }
   .marker-pin.green{background:var(--teal);}
@@ -145,6 +145,51 @@
     padding:8px 16px;border-radius:20px;z-index:1000;display:none;
     box-shadow:0 4px 12px rgba(0,0,0,.4);
   }
+
+  /* Panel flotante de filtros */
+  #filterPanel{
+    position:fixed;top:90px;right:16px;
+    display:flex;flex-direction:column;gap:8px;z-index:900;
+  }
+  .filter-btn{
+    width:46px;height:46px;border-radius:10px;
+    background:var(--panel-2);border:1px solid var(--border);color:var(--text);
+    font-size:.62rem;font-weight:800;line-height:1.1;text-align:center;
+    display:flex;align-items:center;justify-content:center;padding:2px;
+    cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.35);
+  }
+  .filter-btn:hover{border-color:var(--orange);}
+  .filter-btn.active{background:var(--orange);border-color:var(--orange);color:#0d1117;}
+  .filter-popover{
+    position:fixed;right:72px;background:var(--panel);border:1px solid var(--border);
+    border-radius:10px;padding:12px;min-width:190px;
+    box-shadow:0 8px 24px rgba(0,0,0,.5);z-index:1001;display:none;
+  }
+  .filter-popover.show{display:block;}
+  .filter-popover h4{margin:0 0 8px;font-size:.78rem;color:var(--orange);}
+  .filter-popover .opt-row{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:4px;}
+  .filter-chip{
+    padding:4px 10px;border-radius:16px;border:1px solid var(--border);
+    background:var(--panel-2);color:var(--text);font-size:.72rem;cursor:pointer;font-weight:700;
+  }
+  .filter-chip.selected{background:var(--teal);border-color:var(--teal);color:#0d1117;}
+  .filter-popover input[type=text]{
+    width:100%;background:var(--panel-2);border:1px solid var(--border);
+    color:var(--text);border-radius:6px;padding:6px 8px;font-size:.8rem;
+  }
+  .filter-clear{
+    margin-top:8px;font-size:.7rem;color:var(--text-dim);text-decoration:underline;
+    cursor:pointer;background:none;border:none;padding:0;
+  }
+
+  /* Foto pegada en la ficha */
+  .photo-drop{
+    border:2px dashed var(--border);border-radius:8px;padding:10px;
+    text-align:center;cursor:pointer;outline:none;
+  }
+  .photo-drop:focus{border-color:var(--orange);}
+  .photo-preview{max-width:100%;border-radius:6px;display:block;margin:0 auto;}
+  .photo-hint{font-size:.7rem;color:var(--text-dim);}
 </style>
 </head>
 <body>
@@ -160,6 +205,8 @@
   </header>
   <div id="addModeBanner">Haz clic en el mapa para agregar una ubicación</div>
   <div id="map"></div>
+  <div id="filterPanel"></div>
+  <div class="filter-popover" id="filterPopover"></div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -254,11 +301,9 @@ function demoData(){
       direccion: "Av. Providencia 1234, Santiago",
       categoria: "Punto de control",
       lat: -33.4372, lng: -70.6206,
-      estado: "Activo",
       notas: "Este es un dato de ejemplo — conecta tu Google Sheet para ver datos reales.",
-      responsable: "",
       ruido: "3", soportePrincipal: "Stand", auspiciador: "Marca Ejemplo",
-      fechaInicio: "", fechaTermino: "", ofrecidoAuspiciador: ""
+      fechaInicio: "", fechaTermino: "", ofrecidoAuspiciador: "", objetivos: "", foto: ""
     }
   ];
 }
@@ -268,7 +313,7 @@ function demoData(){
    ========================================================= */
 function renderMarkers(){
   markersLayer.clearLayers();
-  locations.forEach(loc => {
+  locations.filter(matchesFilters).forEach(loc => {
     const marker = L.marker([loc.lat, loc.lng], { icon: buildIcon(loc) });
     marker.bindPopup(() => buildFichaHTML(loc), { minWidth: 280 });
     marker.on('popupopen', (e) => wireFichaEvents(e.popup, loc, marker));
@@ -287,8 +332,8 @@ function buildIcon(loc){
   return L.divIcon({
     html,
     className: 'crv-div-icon',
-    iconSize: [220, 24],
-    iconAnchor: [9, 18]
+    iconSize: [260, 44],
+    iconAnchor: [18, 36]
   });
 }
 
@@ -302,13 +347,6 @@ function buildFichaHTML(loc){
       <h3>${escapeHtml(loc.nombre)}</h3>
       <div class="addr">${escapeHtml(loc.direccion || '')}</div>
 
-      <div class="field-group">
-        <label>Estado</label>
-        <select data-field="estado">
-          ${['Activo','Pendiente','Inactivo'].map(o =>
-            `<option value="${o}" ${loc.estado===o?'selected':''}>${o}</option>`).join('')}
-        </select>
-      </div>
       <div class="field-group">
         <label>Ruido</label>
         <select data-field="ruido">
@@ -341,12 +379,19 @@ function buildFichaHTML(loc){
         <input type="text" data-field="ofrecidoAuspiciador" value="${escapeHtml(loc.ofrecidoAuspiciador||'')}">
       </div>
       <div class="field-group">
-        <label>Responsable</label>
-        <input type="text" data-field="responsable" value="${escapeHtml(loc.responsable||'')}">
+        <label>Objetivos</label>
+        <textarea data-field="objetivos">${escapeHtml(loc.objetivos||'')}</textarea>
       </div>
       <div class="field-group">
         <label>Notas</label>
         <textarea data-field="notas">${escapeHtml(loc.notas||'')}</textarea>
+      </div>
+      <div class="field-group">
+        <label>Foto</label>
+        <div class="photo-drop" tabindex="0">
+          <img class="photo-preview" style="display:${loc.foto ? 'block':'none'}" src="${loc.foto||''}">
+          <div class="photo-hint" style="display:${loc.foto ? 'none':'block'}">Copia una imagen y presiona Ctrl+V aquí</div>
+        </div>
       </div>
 
       <button class="save-btn">💾 Guardar cambios</button>
@@ -355,15 +400,39 @@ function buildFichaHTML(loc){
   `;
 }
 
-const EDITABLE_FIELDS = ["estado","ruido","soportePrincipal","auspiciador","fechaInicio","fechaTermino","ofrecidoAuspiciador","responsable","notas"];
+const EDITABLE_FIELDS = ["ruido","soportePrincipal","auspiciador","fechaInicio","fechaTermino","ofrecidoAuspiciador","objetivos","notas"];
 
 function wireFichaEvents(popup, loc, marker){
   const el = popup.getElement();
   if (!el) return;
   const btn = el.querySelector('.save-btn');
   const msg = el.querySelector('.save-msg');
+
+  const photoDrop = el.querySelector('.photo-drop');
+  if (photoDrop){
+    photoDrop.addEventListener('paste', (e) => {
+      const items = (e.clipboardData || window.clipboardData).items;
+      for (const item of items){
+        if (item.type.indexOf('image') === 0){
+          const blob = item.getAsFile();
+          const reader = new FileReader();
+          reader.onload = (ev) => {
+            loc.foto = ev.target.result;
+            const img = photoDrop.querySelector('.photo-preview');
+            const hint = photoDrop.querySelector('.photo-hint');
+            img.src = loc.foto;
+            img.style.display = 'block';
+            hint.style.display = 'none';
+          };
+          reader.readAsDataURL(blob);
+          e.preventDefault();
+        }
+      }
+    });
+  }
+
   btn.addEventListener('click', async () => {
-    const updated = { id: loc.id };
+    const updated = { id: loc.id, foto: loc.foto || '' };
     EDITABLE_FIELDS.forEach(f => {
       const input = el.querySelector(`[data-field="${f}"]`);
       if (input) updated[f] = input.value;
@@ -417,9 +486,8 @@ async function openCreateForm(latlng){
     id: 'loc-' + Date.now(),
     nombre, direccion, categoria,
     lat: latlng.lat, lng: latlng.lng,
-    estado: "Pendiente", notas: "", responsable: "",
-    ruido: "", soportePrincipal: "", auspiciador: "",
-    fechaInicio: "", fechaTermino: "", ofrecidoAuspiciador: ""
+    notas: "", ruido: "", soportePrincipal: "", auspiciador: "",
+    fechaInicio: "", fechaTermino: "", ofrecidoAuspiciador: "", objetivos: "", foto: ""
   };
 
   try{
@@ -439,6 +507,140 @@ async function openCreateForm(latlng){
   }
   toggleAddMode();
 }
+
+/* =========================================================
+   FILTROS (panel flotante lateral)
+   ========================================================= */
+const FILTER_FIELDS = [
+  { key:'categoria', label:'Categoría', type:'select', options:() => [...new Set(locations.map(l=>l.categoria).filter(Boolean))] },
+  { key:'ruido', label:'Ruido', type:'select', options:() => ['1','2','3','4','5'] },
+  { key:'soportePrincipal', label:'Soporte', type:'select', options:() => ['Stand','Arco'] },
+  { key:'auspiciador', label:'Auspicio', type:'presence' },
+  { key:'ofrecidoAuspiciador', label:'Ofrecido a', type:'text' },
+  { key:'objetivos', label:'Objetivos', type:'text' },
+  { key:'fechas', label:'Fechas', type:'text', matchKeys:['fechaInicio','fechaTermino'] },
+  { key:'notas', label:'Notas', type:'text' }
+];
+let activeFilters = {};
+let openPopoverKey = null;
+
+function buildFilterPanel(){
+  const panel = document.getElementById('filterPanel');
+  panel.innerHTML = FILTER_FIELDS.map(f =>
+    `<button class="filter-btn" data-key="${f.key}">${f.label}</button>`
+  ).join('');
+  panel.querySelectorAll('.filter-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const field = FILTER_FIELDS.find(f => f.key === btn.dataset.key);
+      togglePopover(btn, field);
+    });
+  });
+}
+
+function togglePopover(btn, field){
+  if (openPopoverKey === field.key){
+    closePopover();
+    return;
+  }
+  openPopover(btn, field);
+}
+
+function closePopover(){
+  const pop = document.getElementById('filterPopover');
+  pop.classList.remove('show');
+  openPopoverKey = null;
+}
+
+function openPopover(btn, field){
+  const pop = document.getElementById('filterPopover');
+  const rect = btn.getBoundingClientRect();
+  pop.style.top = rect.top + 'px';
+  pop.innerHTML = renderPopoverContent(field);
+  pop.classList.add('show');
+  openPopoverKey = field.key;
+  wirePopoverEvents(field, btn);
+}
+
+function renderPopoverContent(field){
+  const current = activeFilters[field.key];
+  let body = `<h4>${field.label}</h4>`;
+  if (field.type === 'select'){
+    const opts = field.options();
+    body += opts.length
+      ? `<div class="opt-row">${opts.map(o =>
+          `<span class="filter-chip ${current===o?'selected':''}" data-val="${o}">${o}</span>`
+        ).join('')}</div>`
+      : `<div style="font-size:.72rem;color:var(--text-dim);">Sin datos aún</div>`;
+  } else if (field.type === 'presence'){
+    body += `<div class="opt-row">${['Con','Sin'].map(o =>
+      `<span class="filter-chip ${current===o?'selected':''}" data-val="${o}">${o}</span>`
+    ).join('')}</div>`;
+  } else {
+    body += `<input type="text" id="filterTextInput" placeholder="Buscar…" value="${current||''}">`;
+  }
+  if (current) body += `<button class="filter-clear" id="clearFilterBtn">Quitar filtro</button>`;
+  return body;
+}
+
+function wirePopoverEvents(field, btn){
+  const pop = document.getElementById('filterPopover');
+  pop.querySelectorAll('.filter-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      const val = chip.dataset.val;
+      if (activeFilters[field.key] === val) delete activeFilters[field.key];
+      else activeFilters[field.key] = val;
+      renderMarkers();
+      updateFilterButtonStates();
+      openPopover(btn, field);
+    });
+  });
+  const textInput = pop.querySelector('#filterTextInput');
+  if (textInput){
+    textInput.addEventListener('input', () => {
+      const v = textInput.value.trim();
+      if (v) activeFilters[field.key] = v; else delete activeFilters[field.key];
+      renderMarkers();
+      updateFilterButtonStates();
+    });
+  }
+  const clearBtn = pop.querySelector('#clearFilterBtn');
+  if (clearBtn){
+    clearBtn.addEventListener('click', () => {
+      delete activeFilters[field.key];
+      renderMarkers();
+      updateFilterButtonStates();
+      closePopover();
+    });
+  }
+}
+
+function updateFilterButtonStates(){
+  document.querySelectorAll('.filter-btn').forEach(btn => {
+    btn.classList.toggle('active', !!activeFilters[btn.dataset.key]);
+  });
+}
+
+function matchesFilters(loc){
+  return FILTER_FIELDS.every(f => {
+    const val = activeFilters[f.key];
+    if (!val) return true;
+    if (f.type === 'select') return String(loc[f.key]) === val;
+    if (f.type === 'presence'){
+      const has = !!(loc[f.key] && String(loc[f.key]).trim());
+      return val === 'Con' ? has : !has;
+    }
+    const source = f.matchKeys ? f.matchKeys.map(k => loc[k]||'').join(' ') : (loc[f.key]||'');
+    return String(source).toLowerCase().includes(val.toLowerCase());
+  });
+}
+
+document.addEventListener('click', (e) => {
+  const pop = document.getElementById('filterPopover');
+  const panel = document.getElementById('filterPanel');
+  if (openPopoverKey && !pop.contains(e.target) && !panel.contains(e.target)){
+    closePopover();
+  }
+});
 
 /* =========================================================
    UTILIDADES
@@ -464,6 +666,7 @@ function escapeHtml(str){
 document.getElementById('btnAddMode').addEventListener('click', toggleAddMode);
 document.getElementById('btnRefresh').addEventListener('click', loadLocations);
 
+buildFilterPanel();
 initMap();
 loadLocations();
 setInterval(loadLocations, CONFIG.AUTO_REFRESH_MS);
