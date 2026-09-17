@@ -116,6 +116,29 @@
   }
   .toast.show{opacity:1;}
 
+  .crv-div-icon{background:transparent;border:none;}
+  .marker-wrap{display:flex;align-items:center;}
+  .marker-pin{
+    width:18px;height:18px;border-radius:50% 50% 50% 0;
+    transform:rotate(-45deg);
+    border:2px solid #fff;
+    box-shadow:0 1px 4px rgba(0,0,0,.5);
+  }
+  .marker-pin.green{background:var(--teal);}
+  .marker-pin.red{background:#f85149;}
+  .marker-label{
+    margin-left:8px;
+    background:var(--panel);
+    color:var(--text);
+    font-size:.68rem;
+    font-weight:800;
+    padding:3px 8px;
+    border-radius:6px;
+    border:1px solid var(--border);
+    white-space:nowrap;
+    box-shadow:0 2px 6px rgba(0,0,0,.4);
+  }
+
   #addModeBanner{
     position:absolute;top:70px;left:50%;transform:translateX(-50%);
     background:var(--orange);color:#0d1117;font-weight:800;font-size:.8rem;
@@ -233,7 +256,9 @@ function demoData(){
       lat: -33.4372, lng: -70.6206,
       estado: "Activo",
       notas: "Este es un dato de ejemplo — conecta tu Google Sheet para ver datos reales.",
-      responsable: ""
+      responsable: "",
+      ruido: "3", soportePrincipal: "Stand", auspiciador: "Marca Ejemplo",
+      fechaInicio: "", fechaTermino: "", ofrecidoAuspiciador: ""
     }
   ];
 }
@@ -244,10 +269,26 @@ function demoData(){
 function renderMarkers(){
   markersLayer.clearLayers();
   locations.forEach(loc => {
-    const marker = L.marker([loc.lat, loc.lng]);
+    const marker = L.marker([loc.lat, loc.lng], { icon: buildIcon(loc) });
     marker.bindPopup(() => buildFichaHTML(loc), { minWidth: 280 });
-    marker.on('popupopen', (e) => wireFichaEvents(e.popup, loc));
+    marker.on('popupopen', (e) => wireFichaEvents(e.popup, loc, marker));
     marker.addTo(markersLayer);
+    loc.__marker = marker;
+  });
+}
+
+function buildIcon(loc){
+  const hasSponsor = !!(loc.auspiciador && String(loc.auspiciador).trim());
+  const color = hasSponsor ? 'red' : 'green';
+  const label = hasSponsor
+    ? `<div class="marker-label">${escapeHtml(loc.auspiciador)}</div>`
+    : '';
+  const html = `<div class="marker-wrap"><div class="marker-pin ${color}"></div>${label}</div>`;
+  return L.divIcon({
+    html,
+    className: 'crv-div-icon',
+    iconSize: [220, 24],
+    iconAnchor: [9, 18]
   });
 }
 
@@ -269,6 +310,37 @@ function buildFichaHTML(loc){
         </select>
       </div>
       <div class="field-group">
+        <label>Ruido</label>
+        <select data-field="ruido">
+          <option value="">—</option>
+          ${[1,2,3,4,5].map(n =>
+            `<option value="${n}" ${String(loc.ruido)===String(n)?'selected':''}>${n}</option>`).join('')}
+        </select>
+      </div>
+      <div class="field-group">
+        <label>Soporte principal</label>
+        <select data-field="soportePrincipal">
+          <option value="">—</option>
+          ${['Stand','Arco'].map(o =>
+            `<option value="${o}" ${loc.soportePrincipal===o?'selected':''}>${o}</option>`).join('')}
+        </select>
+      </div>
+      <div class="field-group">
+        <label>Auspiciador</label>
+        <input type="text" data-field="auspiciador" value="${escapeHtml(loc.auspiciador||'')}">
+      </div>
+      <div class="field-group">
+        <label>Entre qué fechas</label>
+        <div style="display:flex;gap:6px;">
+          <input type="date" data-field="fechaInicio" value="${escapeHtml(loc.fechaInicio||'')}">
+          <input type="date" data-field="fechaTermino" value="${escapeHtml(loc.fechaTermino||'')}">
+        </div>
+      </div>
+      <div class="field-group">
+        <label>Ofrecido a algún auspiciador</label>
+        <input type="text" data-field="ofrecidoAuspiciador" value="${escapeHtml(loc.ofrecidoAuspiciador||'')}">
+      </div>
+      <div class="field-group">
         <label>Responsable</label>
         <input type="text" data-field="responsable" value="${escapeHtml(loc.responsable||'')}">
       </div>
@@ -283,23 +355,25 @@ function buildFichaHTML(loc){
   `;
 }
 
-function wireFichaEvents(popup, loc){
+const EDITABLE_FIELDS = ["estado","ruido","soportePrincipal","auspiciador","fechaInicio","fechaTermino","ofrecidoAuspiciador","responsable","notas"];
+
+function wireFichaEvents(popup, loc, marker){
   const el = popup.getElement();
   if (!el) return;
   const btn = el.querySelector('.save-btn');
   const msg = el.querySelector('.save-msg');
   btn.addEventListener('click', async () => {
-    const updated = {
-      id: loc.id,
-      estado: el.querySelector('[data-field="estado"]').value,
-      responsable: el.querySelector('[data-field="responsable"]').value,
-      notas: el.querySelector('[data-field="notas"]').value
-    };
+    const updated = { id: loc.id };
+    EDITABLE_FIELDS.forEach(f => {
+      const input = el.querySelector(`[data-field="${f}"]`);
+      if (input) updated[f] = input.value;
+    });
     btn.disabled = true;
     btn.textContent = "Guardando…";
     try{
       await saveLocation(updated);
       Object.assign(loc, updated);
+      if (marker) marker.setIcon(buildIcon(loc));
       msg.textContent = "Guardado ✓";
       msg.className = "save-msg ok";
       showToast("Cambios guardados");
@@ -343,7 +417,9 @@ async function openCreateForm(latlng){
     id: 'loc-' + Date.now(),
     nombre, direccion, categoria,
     lat: latlng.lat, lng: latlng.lng,
-    estado: "Pendiente", notas: "", responsable: ""
+    estado: "Pendiente", notas: "", responsable: "",
+    ruido: "", soportePrincipal: "", auspiciador: "",
+    fechaInicio: "", fechaTermino: "", ofrecidoAuspiciador: ""
   };
 
   try{
