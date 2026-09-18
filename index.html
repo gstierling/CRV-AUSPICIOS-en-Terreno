@@ -273,7 +273,7 @@
     <div class="status-text" id="centerText" style="font-weight:700;color:var(--orange);"></div>
     <div class="toolbar">
       <button id="btnLock">🔒 Bloqueado</button>
-      <button id="btnAddFoto">📷 Agregar foto</button>
+      <button id="btnAddFoto" title="También puedes pegar una imagen con Ctrl+V en cualquier parte de la pantalla">📷 Agregar foto (o Ctrl+V)</button>
       <input type="file" id="fotoFileInput" accept="image/*" style="display:none;">
       <button id="btnAddMode">➕ Agregar ubicación</button>
       <button id="btnRefresh">🔄 Actualizar</button>
@@ -452,7 +452,7 @@ function pedirClicManualParaFoto(file){
 async function guardarFotoEnMapa(fileOrBlob, lat, lng){
   showToast('Subiendo foto…');
   try{
-    const dataUrl = await comprimirImagen(fileOrBlob, 1200, 0.75);
+    const dataUrl = await comprimirImagenConLimite(fileOrBlob);
     const nuevo = { id: 'foto-' + Date.now(), lat, lng, foto: dataUrl };
     if (isConfigured()){
       const res = await fetch(CONFIG.APPS_SCRIPT_URL, {
@@ -674,7 +674,7 @@ function wireFichaEvents(popup, loc, marker){
           const img = photoDrop.querySelector('.photo-preview');
           const hint = photoDrop.querySelector('.photo-hint');
           hint.textContent = 'Procesando imagen…';
-          comprimirImagen(blob, 900, 0.72).then(dataUrl => {
+          comprimirImagenConLimite(blob).then(dataUrl => {
             loc.foto = dataUrl;
             img.src = loc.foto;
             img.style.display = 'block';
@@ -685,6 +685,7 @@ function wireFichaEvents(popup, loc, marker){
             hint.textContent = 'No se pudo procesar la imagen';
           });
           e.preventDefault();
+          e.stopPropagation(); // no debe activar también el pegado global de fotos geolocalizadas
         }
       }
     });
@@ -754,6 +755,20 @@ function comprimirImagen(blob, maxDim, calidad){
     img.onerror = reject;
     img.src = url;
   });
+}
+
+// Tope de peso (en la imagen ya comprimida, como texto base64) que este
+// dashboard acepta subir. Si tras comprimir sigue siendo muy pesada,
+// se reintenta con menor calidad/tamaño automáticamente.
+const MAX_FOTO_BASE64_CHARS = 1.5 * 1024 * 1024; // ~1.5 millones de caracteres ≈ 1.1 MB reales
+
+async function comprimirImagenConLimite(blob){
+  let dataUrl = await comprimirImagen(blob, 1200, 0.75);
+  if (dataUrl.length <= MAX_FOTO_BASE64_CHARS) return dataUrl;
+  dataUrl = await comprimirImagen(blob, 900, 0.6);
+  if (dataUrl.length <= MAX_FOTO_BASE64_CHARS) return dataUrl;
+  dataUrl = await comprimirImagen(blob, 700, 0.45);
+  return dataUrl; // ya es la compresión más agresiva que ofrecemos
 }
 
 /* =========================================================
@@ -1068,6 +1083,23 @@ document.getElementById('fotoFileInput').addEventListener('change', (e) => {
   const file = e.target.files[0];
   if (file) procesarFotoParaMapa(file);
   e.target.value = '';
+});
+
+// Pegar una foto con Ctrl+V en cualquier parte de la pantalla principal
+// también la geolocaliza — funciona junto con (no en vez de) el botón de arriba.
+document.addEventListener('paste', (e) => {
+  // si el pegado ocurre dentro del cuadro de foto de una ficha ya abierta,
+  // ese cuadro ya lo maneja (queda asociada a esa ubicación, no como punto nuevo)
+  if (e.target.closest && e.target.closest('.photo-drop')) return;
+  const items = (e.clipboardData || window.clipboardData).items;
+  for (const item of items){
+    if (item.type.indexOf('image') === 0){
+      const blob = item.getAsFile();
+      procesarFotoParaMapa(blob);
+      e.preventDefault();
+      break;
+    }
+  }
 });
 
 updateLockButton();
