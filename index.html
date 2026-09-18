@@ -7,6 +7,7 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exif-js/2.3.0/exif.js"></script>
 <style>
   :root{
     --bg:#0d1117;
@@ -198,6 +199,16 @@
     box-shadow:0 2px 6px rgba(0,0,0,.4);
   }
 
+  /* Punto de foto geolocalizada: círculo rojo, 1/4 del ancho del pin (36px → 9px) */
+  .foto-div-icon{background:transparent;border:none;}
+  .foto-point{
+    width:9px;height:9px;border-radius:50%;
+    background:#dc2626;border:1.5px solid #fff;
+    box-shadow:0 1px 3px rgba(0,0,0,.6);
+  }
+  .foto-popup-content{padding:6px;}
+  .foto-popup-content img{max-width:260px;max-height:260px;border-radius:8px;display:block;object-fit:cover;}
+
   #addModeBanner{
     position:absolute;top:70px;left:50%;transform:translateX(-50%);
     background:var(--orange);color:#0d1117;font-weight:800;font-size:.8rem;
@@ -262,6 +273,8 @@
     <div class="status-text" id="centerText" style="font-weight:700;color:var(--orange);"></div>
     <div class="toolbar">
       <button id="btnLock">🔒 Bloqueado</button>
+      <button id="btnAddFoto">📷 Agregar foto</button>
+      <input type="file" id="fotoFileInput" accept="image/*" style="display:none;">
       <button id="btnAddMode">➕ Agregar ubicación</button>
       <button id="btnRefresh">🔄 Actualizar</button>
     </div>
@@ -296,12 +309,15 @@ const CONFIG = {
 /* =========================================================
    ESTADO
    ========================================================= */
-let map, markersLayer;
+let map, markersLayer, fotoMarkersLayer;
 let addMode = false;
 let locations = []; // cache local
+let fotoPoints = []; // fotos geolocalizadas
 let isPopupOpen = false;   // evita que el auto-refresh cierre la ficha mientras se edita
 let pendingRender = false;
 let selectedMarker = null; // pin actualmente resaltado
+let pendingFotoBlob = null; // foto sin GPS esperando que el usuario haga clic en el mapa
+let fotoPending = false;
 
 const LOCK_KEY = 'crv_mapa_unlocked';
 const CLAVE_SECUENCIA = "SOICIPSAU".split('');
@@ -320,8 +336,19 @@ function initMap(){
   }).addTo(map);
 
   markersLayer = L.layerGroup().addTo(map);
+  fotoMarkersLayer = L.layerGroup().addTo(map);
 
   map.on('click', (e) => {
+    if (fotoPending && pendingFotoBlob){
+      const blob = pendingFotoBlob;
+      pendingFotoBlob = null;
+      fotoPending = false;
+      document.getElementById('addModeBanner').style.display = 'none';
+      document.getElementById('addModeBanner').textContent = 'Haz clic en el mapa para agregar una ubicación';
+      map.getContainer().style.cursor = '';
+      guardarFotoEnMapa(blob, e.latlng.lat, e.latlng.lng);
+      return;
+    }
     if (addMode) {
       openCreateForm(e.latlng);
     }
@@ -345,6 +372,105 @@ function updateCenterReadout(){
   const z = map.getZoom();
   document.getElementById('centerText').textContent =
     `Centro actual: ${c.lat.toFixed(5)}, ${c.lng.toFixed(5)} · zoom ${z}`;
+}
+
+/* =========================================================
+   FOTOS GEOLOCALIZADAS (puntos rojos, 1/4 del tamaño del pin)
+   ========================================================= */
+function buildFotoIcon(){
+  return L.divIcon({
+    html: '<div class="foto-point"></div>',
+    className: 'foto-div-icon',
+    iconSize: [9, 9],
+    iconAnchor: [4.5, 4.5]
+  });
+}
+
+function renderFotoMarkers(){
+  fotoMarkersLayer.clearLayers();
+  fotoPoints.forEach(fp => {
+    const marker = L.marker([fp.lat, fp.lng], { icon: buildFotoIcon() });
+    marker.bindPopup(
+      `<div class="foto-popup-content"><img src="${fp.foto}" alt="Foto"></div>`,
+      { maxWidth: 300 }
+    );
+    marker.addTo(fotoMarkersLayer);
+  });
+}
+
+async function loadFotoPoints(){
+  if (!isConfigured()){ fotoPoints = []; renderFotoMarkers(); return; }
+  try{
+    const res = await fetch(CONFIG.APPS_SCRIPT_URL + "?action=listFotos");
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    fotoPoints = data.fotos || [];
+    renderFotoMarkers();
+  }catch(err){
+    console.error("Error cargando fotos:", err);
+  }
+}
+
+// Intenta leer coordenadas GPS del EXIF de la foto (funciona con JPG que
+// las traiga, típicamente de cámara con GPS o celular sin pasar por WhatsApp).
+function procesarFotoParaMapa(file){
+  if (typeof EXIF === 'undefined'){
+    pedirClicManualParaFoto(file);
+    return;
+  }
+  EXIF.getData(file, function(){
+    const lat = EXIF.getTag(this, "GPSLatitude");
+    const latRef = EXIF.getTag(this, "GPSLatitudeRef");
+    const lng = EXIF.getTag(this, "GPSLongitude");
+    const lngRef = EXIF.getTag(this, "GPSLongitudeRef");
+    if (lat && lng){
+      const latDec = dmsToDecimal_(lat, latRef);
+      const lngDec = dmsToDecimal_(lng, lngRef);
+      showToast('Ubicación encontrada en la foto');
+      guardarFotoEnMapa(file, latDec, lngDec);
+    } else {
+      pedirClicManualParaFoto(file);
+    }
+  });
+}
+
+function dmsToDecimal_(dms, ref){
+  const decimal = dms[0] + dms[1]/60 + dms[2]/3600;
+  return (ref === 'S' || ref === 'W') ? -decimal : decimal;
+}
+
+function pedirClicManualParaFoto(file){
+  pendingFotoBlob = file;
+  fotoPending = true;
+  const banner = document.getElementById('addModeBanner');
+  banner.textContent = 'Esta foto no trae ubicación GPS — haz clic en el mapa donde fue tomada';
+  banner.style.display = 'block';
+  map.getContainer().style.cursor = 'crosshair';
+  showToast('Sin GPS en la foto — haz clic en el mapa para ubicarla');
+}
+
+async function guardarFotoEnMapa(fileOrBlob, lat, lng){
+  showToast('Subiendo foto…');
+  try{
+    const dataUrl = await comprimirImagen(fileOrBlob, 1200, 0.75);
+    const nuevo = { id: 'foto-' + Date.now(), lat, lng, foto: dataUrl };
+    if (isConfigured()){
+      const res = await fetch(CONFIG.APPS_SCRIPT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({ action: 'createFoto', data: nuevo })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (data.error) throw new Error(data.error);
+      if (data.foto) nuevo.foto = data.foto;
+    }
+    fotoPoints.push(nuevo);
+    renderFotoMarkers();
+    showToast('Foto agregada al mapa');
+  }catch(err){
+    console.error(err);
+    alert('No se pudo guardar la foto: ' + err.message);
+  }
 }
 
 /* =========================================================
@@ -934,13 +1060,22 @@ function escapeHtml(str){
    ARRANQUE
    ========================================================= */
 document.getElementById('btnAddMode').addEventListener('click', toggleAddMode);
-document.getElementById('btnRefresh').addEventListener('click', loadLocations);
+document.getElementById('btnRefresh').addEventListener('click', () => { loadLocations(); loadFotoPoints(); });
+document.getElementById('btnAddFoto').addEventListener('click', () => {
+  document.getElementById('fotoFileInput').click();
+});
+document.getElementById('fotoFileInput').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (file) procesarFotoParaMapa(file);
+  e.target.value = '';
+});
 
 updateLockButton();
 buildFilterPanel();
 initMap();
 loadLocations();
-setInterval(loadLocations, CONFIG.AUTO_REFRESH_MS);
+loadFotoPoints();
+setInterval(() => { loadLocations(); loadFotoPoints(); }, CONFIG.AUTO_REFRESH_MS);
 </script>
 </body>
 </html>
