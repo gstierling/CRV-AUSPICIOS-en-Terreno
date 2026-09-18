@@ -82,14 +82,15 @@
     border:1px solid var(--border);
     box-shadow:0 12px 32px rgba(0,0,0,.35);
   }
-  /* Ficha abierta hacia la derecha del pin, con una cuña larga horizontal a la izquierda */
+  /* Ficha abierta hacia la derecha del pin, separada 5x el ancho del pin,
+     con una cuña larga que cruza ese espacio y apunta al pin */
   .leaflet-popup-tip-container{
     position:absolute !important;
-    left:-38px !important;
+    left:-186px !important;
     top:50% !important;
     margin:0 !important;
     transform:translateY(-50%) !important;
-    width:38px !important;
+    width:186px !important;
     height:30px !important;
     overflow:visible !important;
   }
@@ -98,10 +99,10 @@
     display:block;
     width:0;height:0;
     margin:0;
-    border-top:15px solid transparent;
-    border-bottom:15px solid transparent;
-    border-right:38px solid var(--panel);
-    filter:drop-shadow(-3px 0 3px rgba(0,0,0,.18));
+    border-top:9px solid transparent;
+    border-bottom:9px solid transparent;
+    border-right:186px solid var(--panel);
+    opacity:.85;
   }
   .leaflet-popup-content{margin:0;width:560px !important;}
 
@@ -158,6 +159,13 @@
   }
   .clave-box.clave-ok{background:#00987a;border-color:#00987a;color:#fff;}
   .clave-box.clave-err{background:#dc2626;border-color:#dc2626;color:#fff;}
+
+  /* Pin resaltado mientras su ficha está abierta */
+  .crv-div-icon.marker-selected .marker-pin{
+    box-shadow:0 0 0 6px rgba(249,115,22,.45), 0 2px 8px rgba(0,0,0,.5);
+    transform:rotate(-45deg) scale(1.18);
+  }
+  .crv-div-icon.marker-selected{ z-index:1000 !important; }
 
   .toast{
     position:fixed;bottom:20px;left:50%;transform:translateX(-50%);
@@ -253,11 +261,13 @@
     <div class="status-text" id="statusText">Cargando ubicaciones…</div>
     <div class="status-text" id="centerText" style="font-weight:700;color:var(--orange);"></div>
     <div class="toolbar">
+      <button id="btnLock">🔒 Bloqueado</button>
       <button id="btnAddMode">➕ Agregar ubicación</button>
       <button id="btnRefresh">🔄 Actualizar</button>
     </div>
   </header>
   <div id="addModeBanner">Haz clic en el mapa para agregar una ubicación</div>
+  <div class="filter-popover" id="lockPopover"></div>
   <div id="map"></div>
   <div id="filterPanel"></div>
   <div class="filter-popover" id="filterPopover"></div>
@@ -291,6 +301,11 @@ let addMode = false;
 let locations = []; // cache local
 let isPopupOpen = false;   // evita que el auto-refresh cierre la ficha mientras se edita
 let pendingRender = false;
+let selectedMarker = null; // pin actualmente resaltado
+
+const LOCK_KEY = 'crv_mapa_unlocked';
+const CLAVE_SECUENCIA = "SOICIPSAU".split('');
+let unlockedGlobal = localStorage.getItem(LOCK_KEY) === '1';
 
 /* =========================================================
    INIT MAPA (Leaflet + OpenStreetMap — sin API key,
@@ -342,8 +357,16 @@ async function loadLocations(){
       setStatus("⚠️ Falta configurar APPS_SCRIPT_URL — mostrando datos de ejemplo.");
       locations = demoData();
     } else {
-      const res = await fetch(CONFIG.APPS_SCRIPT_URL + "?action=list");
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
+      let res;
+      try{
+        res = await fetch(CONFIG.APPS_SCRIPT_URL + "?action=list", { signal: controller.signal });
+      } finally {
+        clearTimeout(timeoutId);
+      }
       const data = await res.json();
+      if (data.error) throw new Error(data.error);
       locations = data.locations || [];
       setStatus(`${locations.length} ubicación(es) · actualizado ${new Date().toLocaleTimeString('es-CL')}`);
     }
@@ -354,7 +377,10 @@ async function loadLocations(){
     }
   }catch(err){
     console.error(err);
-    setStatus("⚠️ Error al cargar datos. Reintentando en 30s…");
+    const msg = (err.name === 'AbortError')
+      ? "⚠️ El servidor tardó demasiado en responder (revisa si hay fotos muy pesadas)."
+      : "⚠️ Error al cargar datos. Reintentando en 30s…";
+    setStatus(msg);
   }
 }
 
@@ -385,12 +411,30 @@ function renderMarkers(){
   markersLayer.clearLayers();
   locations.filter(matchesFilters).forEach(loc => {
     const marker = L.marker([loc.lat, loc.lng], { icon: buildIcon(loc) });
-    marker.bindPopup(() => buildFichaHTML(loc), { minWidth: 280 });
-    marker.on('popupopen', (e) => wireFichaEvents(e.popup, loc, marker));
+    marker.bindPopup(() => buildFichaHTML(loc), { minWidth: 280, autoPanPadding: [40,40] });
+    marker.on('popupopen', (e) => {
+      const elm = marker.getElement();
+      if (elm) elm.classList.add('marker-selected');
+      selectedMarker = marker;
+      wireFichaEvents(e.popup, loc, marker);
+    });
+    marker.on('popupclose', () => {
+      const elm = marker.getElement();
+      if (elm) elm.classList.remove('marker-selected');
+      if (selectedMarker === marker) selectedMarker = null;
+    });
     marker.addTo(markersLayer);
     loc.__marker = marker;
   });
 }
+
+// Ancho visual del pin y separación pedida: 5 veces ese ancho entre el
+// borde del pin y la ficha. El ancho aproximado de la ficha (560px + borde)
+// se usa para que popupAnchor.x deje ese hueco exacto a la izquierda de la ventana.
+const PIN_WIDTH = 36;
+const FICHA_GAP = PIN_WIDTH * 5;          // 180px pedidos
+const FICHA_HALF_WIDTH = 281;             // ~mitad de los 562px de la ficha
+const FICHA_HALF_HEIGHT_APPROX = 195;     // altura aproximada/2, para centrar verticalmente en el pin
 
 function buildIcon(loc){
   const hasSponsor = !!(loc.auspiciador && String(loc.auspiciador).trim());
@@ -404,7 +448,7 @@ function buildIcon(loc){
     className: 'crv-div-icon',
     iconSize: [260, 44],
     iconAnchor: [18, 36],
-    popupAnchor: [300, -18]
+    popupAnchor: [(PIN_WIDTH/2) + FICHA_GAP + FICHA_HALF_WIDTH, FICHA_HALF_HEIGHT_APPROX]
   });
 }
 
@@ -412,16 +456,9 @@ function buildIcon(loc){
    FICHA (popup): datos fijos + campos editables
    ========================================================= */
 function buildFichaHTML(loc){
-  const claveLetras = "AUSPICIOS".split('');
+  const locked = !unlockedGlobal;
   return `
     <div class="ficha" data-id="${loc.id}">
-      <div class="clave-strip">
-        <div class="clave-label">🔒 Clave para editar Ruido / Superficie disponible</div>
-        <div class="clave-boxes">
-          ${claveLetras.map((ch,i) => `<div class="clave-box" data-idx="${i}">${ch}</div>`).join('')}
-        </div>
-      </div>
-
       <span class="badge">${escapeHtml(loc.categoria || 'Sin categoría')}</span>
       <h3>${escapeHtml(loc.nombre)}</h3>
       <div class="addr">${escapeHtml(loc.direccion || '')}</div>
@@ -430,8 +467,8 @@ function buildFichaHTML(loc){
         <div class="col-left">
           <div class="field-grid">
             <div class="field-group">
-              <label>🔒 Ruido</label>
-              <select data-field="ruido" disabled>
+              <label>${locked?'🔒 ':''}Ruido</label>
+              <select data-field="ruido" ${locked?'disabled':''}>
                 <option value="">—</option>
                 ${[1,2,3,4,5].map(n =>
                   `<option value="${n}" ${String(loc.ruido)===String(n)?'selected':''}>${n}</option>`).join('')}
@@ -448,8 +485,8 @@ function buildFichaHTML(loc){
           </div>
           <div class="field-grid">
             <div class="field-group">
-              <label>🔒 Superficie disponible</label>
-              <input type="text" data-field="superficieDisponible" placeholder="m²" value="${escapeHtml(loc.superficieDisponible||'')}" disabled>
+              <label>${locked?'🔒 ':''}Superficie disponible</label>
+              <input type="text" data-field="superficieDisponible" placeholder="m²" value="${escapeHtml(loc.superficieDisponible||'')}" ${locked?'disabled':''}>
             </div>
             <div class="field-group">
               <label>Auspiciador</label>
@@ -494,45 +531,12 @@ function buildFichaHTML(loc){
 }
 
 const EDITABLE_FIELDS = ["ruido","soportePrincipal","auspiciador","fechaInicio","fechaTermino","ofrecidoAuspiciador","objetivos","notas","superficieDisponible"];
-const CLAVE_SECUENCIA = "SOICIPSAU".split('');
 
 function wireFichaEvents(popup, loc, marker){
   const el = popup.getElement();
   if (!el) return;
   const btn = el.querySelector('.save-btn');
   const msg = el.querySelector('.save-msg');
-
-  // Juego de clave para desbloquear Ruido / Superficie disponible
-  const claveBoxes = el.querySelectorAll('.clave-box');
-  const claveLabel = el.querySelector('.clave-label');
-  let claveProgreso = 0;
-  const claveUsados = new Set();
-  claveBoxes.forEach(box => {
-    box.addEventListener('click', () => {
-      const idx = Number(box.dataset.idx);
-      if (claveUsados.has(idx)) return;
-      const letra = box.textContent;
-      if (letra === CLAVE_SECUENCIA[claveProgreso]){
-        claveUsados.add(idx);
-        box.classList.add('clave-ok');
-        claveProgreso++;
-        if (claveProgreso === CLAVE_SECUENCIA.length){
-          ['ruido','superficieDisponible'].forEach(f => {
-            const input = el.querySelector(`[data-field="${f}"]`);
-            if (input) input.disabled = false;
-          });
-          claveLabel.textContent = '🔓 Ruido / Superficie disponible desbloqueados';
-          showToast('Campos desbloqueados');
-        }
-      } else {
-        claveProgreso = 0;
-        claveUsados.clear();
-        claveBoxes.forEach(b => b.classList.remove('clave-ok'));
-        box.classList.add('clave-err');
-        setTimeout(() => box.classList.remove('clave-err'), 350);
-      }
-    });
-  });
 
   const photoDrop = el.querySelector('.photo-drop');
   if (photoDrop){
@@ -541,16 +545,19 @@ function wireFichaEvents(popup, loc, marker){
       for (const item of items){
         if (item.type.indexOf('image') === 0){
           const blob = item.getAsFile();
-          const reader = new FileReader();
-          reader.onload = (ev) => {
-            loc.foto = ev.target.result;
-            const img = photoDrop.querySelector('.photo-preview');
-            const hint = photoDrop.querySelector('.photo-hint');
+          const img = photoDrop.querySelector('.photo-preview');
+          const hint = photoDrop.querySelector('.photo-hint');
+          hint.textContent = 'Procesando imagen…';
+          comprimirImagen(blob, 900, 0.72).then(dataUrl => {
+            loc.foto = dataUrl;
             img.src = loc.foto;
             img.style.display = 'block';
             hint.style.display = 'none';
-          };
-          reader.readAsDataURL(blob);
+            hint.textContent = 'Copia una imagen y presiona Ctrl+V aquí';
+          }).catch(err => {
+            console.error(err);
+            hint.textContent = 'No se pudo procesar la imagen';
+          });
           e.preventDefault();
         }
       }
@@ -566,7 +573,9 @@ function wireFichaEvents(popup, loc, marker){
     btn.disabled = true;
     btn.textContent = "Guardando…";
     try{
-      await saveLocation(updated);
+      const result = await saveLocation(updated);
+      // el backend puede devolver la foto ya subida a Drive (URL corta) en vez del base64 original
+      if (result && result.foto) updated.foto = result.foto;
       Object.assign(loc, updated);
       if (marker) marker.setIcon(buildIcon(loc));
       msg.textContent = "Guardado ✓";
@@ -585,10 +594,39 @@ function wireFichaEvents(popup, loc, marker){
 
 async function saveLocation(payload){
   if (!isConfigured()) throw new Error("Backend no configurado");
-  await fetch(CONFIG.APPS_SCRIPT_URL, {
+  const res = await fetch(CONFIG.APPS_SCRIPT_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain' }, // evita preflight CORS
     body: JSON.stringify({ action: 'update', data: payload })
+  });
+  const data = await res.json().catch(() => ({}));
+  if (data.error) throw new Error(data.error);
+  return data;
+}
+
+// Redimensiona/comprime una imagen pegada para que quepa cómodamente
+// en el envío al backend (que la sube a Drive, no a la celda del Sheet).
+function comprimirImagen(blob, maxDim, calidad){
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(blob);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      let { width, height } = img;
+      if (width > maxDim || height > maxDim){
+        const ratio = Math.min(maxDim / width, maxDim / height);
+        width = Math.round(width * ratio);
+        height = Math.round(height * ratio);
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL('image/jpeg', calidad));
+    };
+    img.onerror = reject;
+    img.src = url;
   });
 }
 
@@ -619,11 +657,13 @@ async function openCreateForm(latlng){
 
   try{
     if (isConfigured()){
-      await fetch(CONFIG.APPS_SCRIPT_URL, {
+      const res = await fetch(CONFIG.APPS_SCRIPT_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain' },
         body: JSON.stringify({ action: 'create', data: newLoc })
       });
+      const data = await res.json().catch(() => ({}));
+      if (data.error) throw new Error(data.error);
     }
     locations.push(newLoc);
     renderMarkers();
@@ -770,6 +810,109 @@ document.addEventListener('click', (e) => {
 });
 
 /* =========================================================
+   CLAVE GLOBAL (desbloquea Ruido / Superficie disponible
+   en TODAS las fichas, guardado en este navegador)
+   ========================================================= */
+function updateLockButton(){
+  const btn = document.getElementById('btnLock');
+  btn.textContent = unlockedGlobal ? '🔓 Editable' : '🔒 Bloqueado';
+  btn.classList.toggle('active', unlockedGlobal);
+}
+
+function renderLockPopoverContent(){
+  if (unlockedGlobal){
+    return `
+      <h4>🔓 Edición desbloqueada</h4>
+      <div style="font-size:.72rem;color:var(--text-dim);margin-bottom:8px;">
+        Ruido y Superficie disponible son editables en todas las fichas, en este computador.
+      </div>
+      <button class="filter-clear" id="btnRelock">Bloquear de nuevo</button>
+    `;
+  }
+  const letras = "AUSPICIOS".split('');
+  return `
+    <h4>🔒 Clave para editar Ruido / Superficie disponible</h4>
+    <div class="clave-boxes" id="lockClaveBoxes">
+      ${letras.map((ch,i) => `<div class="clave-box" data-idx="${i}">${ch}</div>`).join('')}
+    </div>
+  `;
+}
+
+function openLockPopover(){
+  const pop = document.getElementById('lockPopover');
+  const btn = document.getElementById('btnLock');
+  const rect = btn.getBoundingClientRect();
+  pop.style.top = (rect.bottom + 8) + 'px';
+  pop.style.right = (window.innerWidth - rect.right) + 'px';
+  pop.innerHTML = renderLockPopoverContent();
+  pop.classList.add('show');
+  wireLockPopoverEvents();
+}
+
+function closeLockPopover(){
+  document.getElementById('lockPopover').classList.remove('show');
+}
+
+function wireLockPopoverEvents(){
+  if (unlockedGlobal){
+    const relockBtn = document.getElementById('btnRelock');
+    if (relockBtn){
+      relockBtn.addEventListener('click', () => {
+        unlockedGlobal = false;
+        localStorage.removeItem(LOCK_KEY);
+        updateLockButton();
+        closeLockPopover();
+        renderMarkers();
+      });
+    }
+    return;
+  }
+  const boxes = document.querySelectorAll('#lockClaveBoxes .clave-box');
+  let progreso = 0;
+  const usados = new Set();
+  boxes.forEach(box => {
+    box.addEventListener('click', () => {
+      const idx = Number(box.dataset.idx);
+      if (usados.has(idx)) return;
+      const letra = box.textContent;
+      if (letra === CLAVE_SECUENCIA[progreso]){
+        usados.add(idx);
+        box.classList.add('clave-ok');
+        progreso++;
+        if (progreso === CLAVE_SECUENCIA.length){
+          unlockedGlobal = true;
+          localStorage.setItem(LOCK_KEY, '1');
+          updateLockButton();
+          showToast('Edición desbloqueada en este computador');
+          renderMarkers();
+          setTimeout(openLockPopover, 250);
+        }
+      } else {
+        progreso = 0;
+        usados.clear();
+        boxes.forEach(b => b.classList.remove('clave-ok'));
+        box.classList.add('clave-err');
+        setTimeout(() => box.classList.remove('clave-err'), 350);
+      }
+    });
+  });
+}
+
+document.getElementById('btnLock').addEventListener('click', () => {
+  const pop = document.getElementById('lockPopover');
+  if (pop.classList.contains('show')) closeLockPopover();
+  else openLockPopover();
+});
+
+document.addEventListener('click', (e) => {
+  const pop = document.getElementById('lockPopover');
+  const btn = document.getElementById('btnLock');
+  if (pop.classList.contains('show') && !pop.contains(e.target) && !btn.contains(e.target)){
+    closeLockPopover();
+  }
+});
+
+/* =========================================================
    UTILIDADES
    ========================================================= */
 function setStatus(t){ document.getElementById('statusText').textContent = t; }
@@ -793,6 +936,7 @@ function escapeHtml(str){
 document.getElementById('btnAddMode').addEventListener('click', toggleAddMode);
 document.getElementById('btnRefresh').addEventListener('click', loadLocations);
 
+updateLockButton();
 buildFilterPanel();
 initMap();
 loadLocations();
