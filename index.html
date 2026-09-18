@@ -82,8 +82,28 @@
     border:1px solid var(--border);
     box-shadow:0 12px 32px rgba(0,0,0,.35);
   }
-  .leaflet-popup-tip{background:var(--panel);}
-  .leaflet-popup-content{margin:0;width:380px !important;}
+  /* Ficha abierta hacia la derecha del pin, con una cuña larga horizontal a la izquierda */
+  .leaflet-popup-tip-container{
+    position:absolute !important;
+    left:-38px !important;
+    top:50% !important;
+    margin:0 !important;
+    transform:translateY(-50%) !important;
+    width:38px !important;
+    height:30px !important;
+    overflow:visible !important;
+  }
+  .leaflet-popup-tip{
+    all:unset;
+    display:block;
+    width:0;height:0;
+    margin:0;
+    border-top:15px solid transparent;
+    border-bottom:15px solid transparent;
+    border-right:38px solid var(--panel);
+    filter:drop-shadow(-3px 0 3px rgba(0,0,0,.18));
+  }
+  .leaflet-popup-content{margin:0;width:560px !important;}
 
   .ficha{padding:16px;}
   .ficha h3{
@@ -95,11 +115,12 @@
     padding:2px 8px;border-radius:20px;background:rgba(0,150,120,.12);
     color:#00987a;margin-bottom:10px;
   }
+  .ficha-columns{display:grid;grid-template-columns:1fr 1fr;gap:0 18px;}
   .field-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
   .field-group{margin-bottom:9px;}
   .field-group label{
-    display:block;font-size:.68rem;text-transform:uppercase;
-    letter-spacing:.03em;color:var(--text-dim);margin-bottom:3px;font-weight:700;
+    display:block;font-size:.74rem;text-transform:uppercase;
+    letter-spacing:.03em;color:#334155;margin-bottom:3px;font-weight:800;
   }
   .field-fixed{font-size:.85rem;color:var(--text);}
   .field-group input, .field-group textarea, .field-group select{
@@ -125,10 +146,10 @@
     padding:8px 10px;margin-bottom:12px;
   }
   .clave-label{
-    font-size:.66rem;font-weight:700;color:var(--text-dim);
+    font-size:.68rem;font-weight:800;color:#334155;
     text-transform:uppercase;letter-spacing:.03em;margin-bottom:6px;
   }
-  .clave-boxes{display:flex;gap:3px;}
+  .clave-boxes{display:flex;gap:3px;max-width:340px;}
   .clave-box{
     flex:1;height:28px;display:flex;align-items:center;justify-content:center;
     border:1px solid var(--border);border-radius:5px;background:#fff;
@@ -179,17 +200,20 @@
   /* Panel flotante de filtros */
   #filterPanel{
     position:fixed;top:90px;right:16px;
-    display:flex;flex-direction:column;gap:8px;z-index:900;
+    display:flex;flex-direction:column;align-items:flex-end;gap:8px;z-index:900;
   }
   .filter-btn{
-    width:46px;height:46px;border-radius:10px;
-    background:var(--panel-2);border:1px solid var(--border);color:var(--text);
-    font-size:.62rem;font-weight:800;line-height:1.1;text-align:center;
-    display:flex;align-items:center;justify-content:center;padding:2px;
-    cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.35);
+    min-width:72px;padding:9px 14px;border-radius:12px;
+    background:rgba(28,35,51,.62);border:1px solid rgba(255,255,255,.09);color:var(--text);
+    font-size:.72rem;font-weight:700;line-height:1.15;text-align:center;
+    white-space:nowrap;
+    display:flex;align-items:center;justify-content:center;
+    cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.3);
+    backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+    transition:all .15s;
   }
-  .filter-btn:hover{border-color:var(--orange);}
-  .filter-btn.active{background:var(--orange);border-color:var(--orange);color:#0d1117;}
+  .filter-btn:hover{border-color:var(--orange);background:rgba(28,35,51,.8);}
+  .filter-btn.active{background:rgba(249,115,22,.82);border-color:var(--orange);color:#0d1117;}
   .filter-popover{
     position:fixed;right:72px;background:var(--panel);border:1px solid var(--border);
     border-radius:10px;padding:12px;min-width:190px;
@@ -265,6 +289,8 @@ const CONFIG = {
 let map, markersLayer;
 let addMode = false;
 let locations = []; // cache local
+let isPopupOpen = false;   // evita que el auto-refresh cierre la ficha mientras se edita
+let pendingRender = false;
 
 /* =========================================================
    INIT MAPA (Leaflet + OpenStreetMap — sin API key,
@@ -288,6 +314,15 @@ function initMap(){
 
   map.on('moveend', updateCenterReadout);
   updateCenterReadout();
+
+  map.on('popupopen', () => { isPopupOpen = true; });
+  map.on('popupclose', () => {
+    isPopupOpen = false;
+    if (pendingRender){
+      pendingRender = false;
+      renderMarkers();
+    }
+  });
 }
 
 function updateCenterReadout(){
@@ -312,7 +347,11 @@ async function loadLocations(){
       locations = data.locations || [];
       setStatus(`${locations.length} ubicación(es) · actualizado ${new Date().toLocaleTimeString('es-CL')}`);
     }
-    renderMarkers();
+    if (isPopupOpen){
+      pendingRender = true; // no interrumpir la ficha que se está editando ahora mismo
+    } else {
+      renderMarkers();
+    }
   }catch(err){
     console.error(err);
     setStatus("⚠️ Error al cargar datos. Reintentando en 30s…");
@@ -365,7 +404,7 @@ function buildIcon(loc){
     className: 'crv-div-icon',
     iconSize: [260, 44],
     iconAnchor: [18, 36],
-    popupAnchor: [0, -10]
+    popupAnchor: [300, -18]
   });
 }
 
@@ -387,58 +426,64 @@ function buildFichaHTML(loc){
       <h3>${escapeHtml(loc.nombre)}</h3>
       <div class="addr">${escapeHtml(loc.direccion || '')}</div>
 
-      <div class="field-grid">
-        <div class="field-group">
-          <label>🔒 Ruido</label>
-          <select data-field="ruido" disabled>
-            <option value="">—</option>
-            ${[1,2,3,4,5].map(n =>
-              `<option value="${n}" ${String(loc.ruido)===String(n)?'selected':''}>${n}</option>`).join('')}
-          </select>
+      <div class="ficha-columns">
+        <div class="col-left">
+          <div class="field-grid">
+            <div class="field-group">
+              <label>🔒 Ruido</label>
+              <select data-field="ruido" disabled>
+                <option value="">—</option>
+                ${[1,2,3,4,5].map(n =>
+                  `<option value="${n}" ${String(loc.ruido)===String(n)?'selected':''}>${n}</option>`).join('')}
+              </select>
+            </div>
+            <div class="field-group">
+              <label>Soporte principal</label>
+              <select data-field="soportePrincipal">
+                <option value="">—</option>
+                ${['Stand','Arco'].map(o =>
+                  `<option value="${o}" ${loc.soportePrincipal===o?'selected':''}>${o}</option>`).join('')}
+              </select>
+            </div>
+          </div>
+          <div class="field-grid">
+            <div class="field-group">
+              <label>🔒 Superficie disponible</label>
+              <input type="text" data-field="superficieDisponible" placeholder="m²" value="${escapeHtml(loc.superficieDisponible||'')}" disabled>
+            </div>
+            <div class="field-group">
+              <label>Auspiciador</label>
+              <input type="text" data-field="auspiciador" value="${escapeHtml(loc.auspiciador||'')}">
+            </div>
+          </div>
+          <div class="field-group">
+            <label>Entre qué fechas</label>
+            <div style="display:flex;gap:6px;">
+              <input type="date" data-field="fechaInicio" value="${escapeHtml(loc.fechaInicio||'')}">
+              <input type="date" data-field="fechaTermino" value="${escapeHtml(loc.fechaTermino||'')}">
+            </div>
+          </div>
+          <div class="field-group">
+            <label>Ofrecido a algún auspiciador</label>
+            <input type="text" data-field="ofrecidoAuspiciador" value="${escapeHtml(loc.ofrecidoAuspiciador||'')}">
+          </div>
         </div>
-        <div class="field-group">
-          <label>Soporte principal</label>
-          <select data-field="soportePrincipal">
-            <option value="">—</option>
-            ${['Stand','Arco'].map(o =>
-              `<option value="${o}" ${loc.soportePrincipal===o?'selected':''}>${o}</option>`).join('')}
-          </select>
-        </div>
-      </div>
-      <div class="field-grid">
-        <div class="field-group">
-          <label>🔒 Superficie disponible</label>
-          <input type="text" data-field="superficieDisponible" placeholder="m²" value="${escapeHtml(loc.superficieDisponible||'')}" disabled>
-        </div>
-        <div class="field-group">
-          <label>Auspiciador</label>
-          <input type="text" data-field="auspiciador" value="${escapeHtml(loc.auspiciador||'')}">
-        </div>
-      </div>
-      <div class="field-group">
-        <label>Entre qué fechas</label>
-        <div style="display:flex;gap:6px;">
-          <input type="date" data-field="fechaInicio" value="${escapeHtml(loc.fechaInicio||'')}">
-          <input type="date" data-field="fechaTermino" value="${escapeHtml(loc.fechaTermino||'')}">
-        </div>
-      </div>
-      <div class="field-group">
-        <label>Ofrecido a algún auspiciador</label>
-        <input type="text" data-field="ofrecidoAuspiciador" value="${escapeHtml(loc.ofrecidoAuspiciador||'')}">
-      </div>
-      <div class="field-group">
-        <label>Objetivos</label>
-        <textarea data-field="objetivos">${escapeHtml(loc.objetivos||'')}</textarea>
-      </div>
-      <div class="field-group">
-        <label>Notas</label>
-        <textarea data-field="notas">${escapeHtml(loc.notas||'')}</textarea>
-      </div>
-      <div class="field-group">
-        <label>Foto</label>
-        <div class="photo-drop" tabindex="0">
-          <img class="photo-preview" style="display:${loc.foto ? 'block':'none'}" src="${loc.foto||''}">
-          <div class="photo-hint" style="display:${loc.foto ? 'none':'block'}">Copia una imagen y presiona Ctrl+V aquí</div>
+        <div class="col-right">
+          <div class="field-group">
+            <label>Objetivos</label>
+            <textarea data-field="objetivos">${escapeHtml(loc.objetivos||'')}</textarea>
+          </div>
+          <div class="field-group">
+            <label>Notas</label>
+            <textarea data-field="notas">${escapeHtml(loc.notas||'')}</textarea>
+          </div>
+          <div class="field-group">
+            <label>Foto</label>
+            <div class="photo-drop" tabindex="0">
+              <img class="photo-preview" style="display:${loc.foto ? 'block':'none'}" src="${loc.foto||''}">
+              <div class="photo-hint" style="display:${loc.foto ? 'none':'block'}">Copia una imagen y presiona Ctrl+V aquí</div>
+            </div>
+          </div>
         </div>
       </div>
 
