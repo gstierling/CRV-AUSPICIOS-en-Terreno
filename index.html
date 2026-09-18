@@ -68,25 +68,34 @@
 
   #map{flex:1;width:100%;background:#0d1117;}
 
+  .leaflet-popup{
+    --panel:#ffffff;
+    --panel-2:#f1f5f9;
+    --border:#dde3ea;
+    --text:#1e293b;
+    --text-dim:#64748b;
+  }
   .leaflet-popup-content-wrapper{
     background:var(--panel);
     color:var(--text);
-    border-radius:10px;
+    border-radius:12px;
     border:1px solid var(--border);
+    box-shadow:0 12px 32px rgba(0,0,0,.35);
   }
   .leaflet-popup-tip{background:var(--panel);}
-  .leaflet-popup-content{margin:0;width:280px !important;}
+  .leaflet-popup-content{margin:0;width:380px !important;}
 
-  .ficha{padding:14px;}
+  .ficha{padding:16px;}
   .ficha h3{
     margin:0 0 4px 0;font-size:1rem;font-weight:800;color:var(--orange);
   }
   .ficha .addr{font-size:.78rem;color:var(--text-dim);margin-bottom:10px;}
   .ficha .badge{
     display:inline-block;font-size:.68rem;font-weight:700;
-    padding:2px 8px;border-radius:20px;background:rgba(0,212,170,.15);
-    color:var(--teal);margin-bottom:10px;
+    padding:2px 8px;border-radius:20px;background:rgba(0,150,120,.12);
+    color:#00987a;margin-bottom:10px;
   }
+  .field-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
   .field-group{margin-bottom:9px;}
   .field-group label{
     display:block;font-size:.68rem;text-transform:uppercase;
@@ -98,15 +107,36 @@
     color:var(--text);border-radius:6px;padding:6px 8px;font-family:inherit;
     font-size:.83rem;
   }
+  .field-group select:disabled, .field-group input:disabled{
+    opacity:.5;cursor:not-allowed;
+  }
   .field-group select{appearance:none;background-image:linear-gradient(45deg, transparent 50%, var(--orange) 50%),linear-gradient(135deg, var(--orange) 50%, transparent 50%);background-position:calc(100% - 16px) center, calc(100% - 11px) center;background-size:5px 5px,5px 5px;background-repeat:no-repeat;}
-  .field-group textarea{resize:vertical;min-height:50px;}
+  .field-group textarea{resize:vertical;min-height:44px;}
   .save-btn{
     width:100%;margin-top:6px;justify-content:center;
     background:var(--teal);border-color:var(--teal);color:#0d1117;
   }
   .save-msg{font-size:.72rem;margin-top:6px;text-align:center;height:14px;}
-  .save-msg.ok{color:var(--teal);}
-  .save-msg.err{color:#f85149;}
+  .save-msg.ok{color:#00987a;}
+  .save-msg.err{color:#dc2626;}
+
+  .clave-strip{
+    background:var(--panel-2);border:1px solid var(--border);border-radius:8px;
+    padding:8px 10px;margin-bottom:12px;
+  }
+  .clave-label{
+    font-size:.66rem;font-weight:700;color:var(--text-dim);
+    text-transform:uppercase;letter-spacing:.03em;margin-bottom:6px;
+  }
+  .clave-boxes{display:flex;gap:3px;}
+  .clave-box{
+    flex:1;height:28px;display:flex;align-items:center;justify-content:center;
+    border:1px solid var(--border);border-radius:5px;background:#fff;
+    font-weight:800;font-size:.75rem;color:var(--text);cursor:pointer;user-select:none;
+    transition:all .15s;
+  }
+  .clave-box.clave-ok{background:#00987a;border-color:#00987a;color:#fff;}
+  .clave-box.clave-err{background:#dc2626;border-color:#dc2626;color:#fff;}
 
   .toast{
     position:fixed;bottom:20px;left:50%;transform:translateX(-50%);
@@ -303,7 +333,8 @@ function demoData(){
       lat: -33.4372, lng: -70.6206,
       notas: "Este es un dato de ejemplo — conecta tu Google Sheet para ver datos reales.",
       ruido: "3", soportePrincipal: "Stand", auspiciador: "Marca Ejemplo",
-      fechaInicio: "", fechaTermino: "", ofrecidoAuspiciador: "", objetivos: "", foto: ""
+      fechaInicio: "", fechaTermino: "", ofrecidoAuspiciador: "", objetivos: "", foto: "",
+      superficieDisponible: "20 m²"
     }
   ];
 }
@@ -333,7 +364,8 @@ function buildIcon(loc){
     html,
     className: 'crv-div-icon',
     iconSize: [260, 44],
-    iconAnchor: [18, 36]
+    iconAnchor: [18, 36],
+    popupAnchor: [0, -10]
   });
 }
 
@@ -341,31 +373,47 @@ function buildIcon(loc){
    FICHA (popup): datos fijos + campos editables
    ========================================================= */
 function buildFichaHTML(loc){
+  const claveLetras = "AUSPICIOS".split('');
   return `
     <div class="ficha" data-id="${loc.id}">
+      <div class="clave-strip">
+        <div class="clave-label">🔒 Clave para editar Ruido / Superficie disponible</div>
+        <div class="clave-boxes">
+          ${claveLetras.map((ch,i) => `<div class="clave-box" data-idx="${i}">${ch}</div>`).join('')}
+        </div>
+      </div>
+
       <span class="badge">${escapeHtml(loc.categoria || 'Sin categoría')}</span>
       <h3>${escapeHtml(loc.nombre)}</h3>
       <div class="addr">${escapeHtml(loc.direccion || '')}</div>
 
-      <div class="field-group">
-        <label>Ruido</label>
-        <select data-field="ruido">
-          <option value="">—</option>
-          ${[1,2,3,4,5].map(n =>
-            `<option value="${n}" ${String(loc.ruido)===String(n)?'selected':''}>${n}</option>`).join('')}
-        </select>
+      <div class="field-grid">
+        <div class="field-group">
+          <label>🔒 Ruido</label>
+          <select data-field="ruido" disabled>
+            <option value="">—</option>
+            ${[1,2,3,4,5].map(n =>
+              `<option value="${n}" ${String(loc.ruido)===String(n)?'selected':''}>${n}</option>`).join('')}
+          </select>
+        </div>
+        <div class="field-group">
+          <label>Soporte principal</label>
+          <select data-field="soportePrincipal">
+            <option value="">—</option>
+            ${['Stand','Arco'].map(o =>
+              `<option value="${o}" ${loc.soportePrincipal===o?'selected':''}>${o}</option>`).join('')}
+          </select>
+        </div>
       </div>
-      <div class="field-group">
-        <label>Soporte principal</label>
-        <select data-field="soportePrincipal">
-          <option value="">—</option>
-          ${['Stand','Arco'].map(o =>
-            `<option value="${o}" ${loc.soportePrincipal===o?'selected':''}>${o}</option>`).join('')}
-        </select>
-      </div>
-      <div class="field-group">
-        <label>Auspiciador</label>
-        <input type="text" data-field="auspiciador" value="${escapeHtml(loc.auspiciador||'')}">
+      <div class="field-grid">
+        <div class="field-group">
+          <label>🔒 Superficie disponible</label>
+          <input type="text" data-field="superficieDisponible" placeholder="m²" value="${escapeHtml(loc.superficieDisponible||'')}" disabled>
+        </div>
+        <div class="field-group">
+          <label>Auspiciador</label>
+          <input type="text" data-field="auspiciador" value="${escapeHtml(loc.auspiciador||'')}">
+        </div>
       </div>
       <div class="field-group">
         <label>Entre qué fechas</label>
@@ -400,13 +448,46 @@ function buildFichaHTML(loc){
   `;
 }
 
-const EDITABLE_FIELDS = ["ruido","soportePrincipal","auspiciador","fechaInicio","fechaTermino","ofrecidoAuspiciador","objetivos","notas"];
+const EDITABLE_FIELDS = ["ruido","soportePrincipal","auspiciador","fechaInicio","fechaTermino","ofrecidoAuspiciador","objetivos","notas","superficieDisponible"];
+const CLAVE_SECUENCIA = "SOICIPSAU".split('');
 
 function wireFichaEvents(popup, loc, marker){
   const el = popup.getElement();
   if (!el) return;
   const btn = el.querySelector('.save-btn');
   const msg = el.querySelector('.save-msg');
+
+  // Juego de clave para desbloquear Ruido / Superficie disponible
+  const claveBoxes = el.querySelectorAll('.clave-box');
+  const claveLabel = el.querySelector('.clave-label');
+  let claveProgreso = 0;
+  const claveUsados = new Set();
+  claveBoxes.forEach(box => {
+    box.addEventListener('click', () => {
+      const idx = Number(box.dataset.idx);
+      if (claveUsados.has(idx)) return;
+      const letra = box.textContent;
+      if (letra === CLAVE_SECUENCIA[claveProgreso]){
+        claveUsados.add(idx);
+        box.classList.add('clave-ok');
+        claveProgreso++;
+        if (claveProgreso === CLAVE_SECUENCIA.length){
+          ['ruido','superficieDisponible'].forEach(f => {
+            const input = el.querySelector(`[data-field="${f}"]`);
+            if (input) input.disabled = false;
+          });
+          claveLabel.textContent = '🔓 Ruido / Superficie disponible desbloqueados';
+          showToast('Campos desbloqueados');
+        }
+      } else {
+        claveProgreso = 0;
+        claveUsados.clear();
+        claveBoxes.forEach(b => b.classList.remove('clave-ok'));
+        box.classList.add('clave-err');
+        setTimeout(() => box.classList.remove('clave-err'), 350);
+      }
+    });
+  });
 
   const photoDrop = el.querySelector('.photo-drop');
   if (photoDrop){
@@ -487,7 +568,8 @@ async function openCreateForm(latlng){
     nombre, direccion, categoria,
     lat: latlng.lat, lng: latlng.lng,
     notas: "", ruido: "", soportePrincipal: "", auspiciador: "",
-    fechaInicio: "", fechaTermino: "", ofrecidoAuspiciador: "", objetivos: "", foto: ""
+    fechaInicio: "", fechaTermino: "", ofrecidoAuspiciador: "", objetivos: "", foto: "",
+    superficieDisponible: ""
   };
 
   try{
