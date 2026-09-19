@@ -5,8 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Mapa de Ubicaciones — CRV</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exif-js/2.3.0/exif.js"></script>
 <style>
   :root{
@@ -20,7 +18,7 @@
     --teal:#00d4aa;
   }
   *{box-sizing:border-box;}
-  html,body{height:100%;margin:0;padding:0;font-family:'Nunito',sans-serif;background:var(--bg);color:var(--text);}
+  html,body{height:100%;margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);}
   #app{display:flex;flex-direction:column;height:100vh;}
 
   header{
@@ -101,11 +99,11 @@
   .ficha-title-input{
     display:block;width:100%;text-align:center;border:none;
     background:transparent;font-family:inherit;font-weight:800;
-    font-size:1.05rem;color:var(--orange);padding:4px 6px;
+    font-size:1.05rem;color:#2563eb;padding:4px 6px;
     border-radius:6px;margin:0 auto 4px auto;
   }
   .ficha-title-input.ficha-auspiciador-input{
-    font-size:.95rem;color:#334155;font-weight:800;margin-bottom:8px;
+    font-size:1.19rem;color:#334155;font-weight:800;margin-bottom:8px;
   }
   .ficha-title-input:focus{outline:none;background:var(--panel-2);}
   .ficha-title-input::placeholder{color:var(--text-dim);font-weight:600;}
@@ -113,8 +111,9 @@
   .field-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
   .field-group{margin-bottom:9px;}
   .field-group label{
-    display:block;font-size:.74rem;
-    letter-spacing:.01em;color:#334155;margin-bottom:3px;font-weight:800;
+    display:block;font-size:.98rem;
+    letter-spacing:0;color:#334155;margin-bottom:3px;font-weight:800;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
   }
   .field-fixed{font-size:.85rem;color:var(--text);}
   .field-group input, .field-group textarea, .field-group select{
@@ -226,6 +225,14 @@
   .paste-zone:focus{outline:none;border-color:var(--orange);background:rgba(249,115,22,.08);}
   .paste-zone.paste-ok{border-color:var(--teal);background:rgba(0,212,170,.12);}
 
+  /* "Elige foto" y "Pega foto": colores invertidos para marcar cuál se usó */
+  #btnAddFoto.selected, .paste-zone.selected{
+    background:var(--text);
+    color:var(--bg);
+    border-color:var(--text);
+  }
+  #btnAddFoto.selected svg, .paste-zone.selected svg{ color:var(--bg); }
+
   #addModeBanner{
     position:absolute;top:70px;left:50%;transform:translateX(-50%);
     background:var(--orange);color:#0d1117;font-weight:800;font-size:.8rem;
@@ -240,7 +247,7 @@
   }
   .filter-btn{
     min-width:72px;padding:9px 14px;border-radius:12px;
-    background:rgba(28,35,51,.62);border:1px solid rgba(255,255,255,.09);color:var(--text);
+    background:rgba(220,38,38,.6);border:1px solid rgba(255,255,255,.15);color:#ffffff;
     font-size:.72rem;font-weight:700;line-height:1.15;text-align:center;
     white-space:nowrap;
     display:flex;align-items:center;justify-content:center;
@@ -248,8 +255,8 @@
     backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
     transition:all .15s;
   }
-  .filter-btn:hover{border-color:var(--orange);background:rgba(28,35,51,.8);}
-  .filter-btn.active{background:rgba(249,115,22,.82);border-color:var(--orange);color:#0d1117;}
+  .filter-btn:hover{border-color:#fff;background:rgba(220,38,38,.8);}
+  .filter-btn.active{background:#dc2626;border-color:#fff;color:#fff;}
   .filter-popover{
     position:fixed;right:72px;background:var(--panel);border:1px solid var(--border);
     border-radius:10px;padding:12px;min-width:190px;
@@ -292,12 +299,12 @@
       <button id="btnLock">🔒 Bloqueado</button>
       <button id="btnAddFoto" title="Elegir una foto desde una carpeta">
         <svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
-        Elegir foto
+        Elige foto
       </button>
       <input type="file" id="fotoFileInput" accept="image/*" style="display:none;">
       <div class="paste-zone" id="pasteZone" tabindex="0" title="Haz clic aquí y presiona Ctrl+V para pegar una imagen copiada">
         <svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2" width="8" height="4" rx="1"></rect><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path></svg>
-        Pega aquí (Ctrl+V)
+        Pega foto
       </div>
       <button id="btnAddMode">➕ Agregar ubicación</button>
       <button id="btnRefresh">🔄 Actualizar</button>
@@ -634,15 +641,13 @@ function buildFichaHTML(loc){
               </select>
             </div>
           </div>
-          <div class="field-grid">
-            <div class="field-group">
-              <label>${locked?'🔒 ':''}Superficie disp.</label>
-              <input type="text" data-field="superficieDisponible" placeholder="m²" value="${escapeHtml(loc.superficieDisponible||'')}" ${locked?'disabled':''}>
-            </div>
-            <div class="field-group">
-              <label>Ofrecido a algún auspiciador</label>
-              <input type="text" data-field="ofrecidoAuspiciador" value="${escapeHtml(loc.ofrecidoAuspiciador||'')}">
-            </div>
+          <div class="field-group">
+            <label>${locked?'🔒 ':''}Superficie disp.</label>
+            <input type="text" data-field="superficieDisponible" placeholder="m²" value="${escapeHtml(loc.superficieDisponible||'')}" ${locked?'disabled':''}>
+          </div>
+          <div class="field-group">
+            <label>Auspiciador posible</label>
+            <input type="text" data-field="ofrecidoAuspiciador" value="${escapeHtml(loc.ofrecidoAuspiciador||'')}">
           </div>
           <div class="field-group">
             <label>Entre qué fechas</label>
@@ -685,8 +690,10 @@ function wireFichaEvents(popup, loc, marker){
   const btn = el.querySelector('.save-btn');
   const msg = el.querySelector('.save-msg');
 
-  // Nombre y Auspiciador se ingresan siempre en mayúscula, aunque el teclado esté en minúscula
-  el.querySelectorAll('.ficha-title-input').forEach(inp => {
+  // Solo el campo Auspiciador se fuerza a mayúscula. El título (nombre) queda
+  // libre: se respeta tal cual se escribe, mayúscula solo donde el usuario
+  // realmente la tipea, sin transformar el resto del texto.
+  el.querySelectorAll('.ficha-auspiciador-input').forEach(inp => {
     inp.addEventListener('input', () => {
       const pos = inp.selectionStart;
       inp.value = inp.value.toUpperCase();
@@ -794,17 +801,27 @@ function comprimirImagen(blob, maxDim, calidad){
   });
 }
 
-// Tope de peso (en la imagen ya comprimida, como texto base64) que este
-// dashboard acepta subir. Si tras comprimir sigue siendo muy pesada,
-// se reintenta con menor calidad/tamaño automáticamente.
-const MAX_FOTO_BASE64_CHARS = 1.5 * 1024 * 1024; // ~1.5 millones de caracteres ≈ 1.1 MB reales
+// Tope de peso real que este dashboard acepta para CUALQUIER foto, suba por
+// el método que suba (archivo o Ctrl+V): 500 KB. Si tras comprimir sigue
+// pesando más, se reintenta automáticamente con menor tamaño/calidad hasta
+// lograrlo (o hasta llegar al mínimo que seguimos ofreciendo).
+const MAX_FOTO_BYTES = 500 * 1024;                    // 500 KB reales
+const MAX_FOTO_BASE64_CHARS = Math.floor(MAX_FOTO_BYTES * 4 / 3 * 0.92); // margen por el overhead del base64
 
 async function comprimirImagenConLimite(blob){
-  let dataUrl = await comprimirImagen(blob, 1200, 0.75);
-  if (dataUrl.length <= MAX_FOTO_BASE64_CHARS) return dataUrl;
-  dataUrl = await comprimirImagen(blob, 900, 0.6);
-  if (dataUrl.length <= MAX_FOTO_BASE64_CHARS) return dataUrl;
-  dataUrl = await comprimirImagen(blob, 700, 0.45);
+  const intentos = [
+    [1100, 0.7],
+    [900, 0.55],
+    [700, 0.45],
+    [550, 0.35],
+    [420, 0.3],
+    [320, 0.25]
+  ];
+  let dataUrl = null;
+  for (const [maxDim, calidad] of intentos){
+    dataUrl = await comprimirImagen(blob, maxDim, calidad);
+    if (dataUrl.length <= MAX_FOTO_BASE64_CHARS) return dataUrl;
+  }
   return dataUrl; // ya es la compresión más agresiva que ofrecemos
 }
 
@@ -1114,6 +1131,7 @@ function escapeHtml(str){
 document.getElementById('btnAddMode').addEventListener('click', toggleAddMode);
 document.getElementById('btnRefresh').addEventListener('click', () => { loadLocations(); loadFotoPoints(); });
 document.getElementById('btnAddFoto').addEventListener('click', () => {
+  marcarBotonFotoUsado('elegir');
   document.getElementById('fotoFileInput').click();
 });
 document.getElementById('fotoFileInput').addEventListener('change', (e) => {
@@ -1122,8 +1140,13 @@ document.getElementById('fotoFileInput').addEventListener('change', (e) => {
   e.target.value = '';
 });
 
+function marcarBotonFotoUsado(cual){
+  document.getElementById('btnAddFoto').classList.toggle('selected', cual === 'elegir');
+  document.getElementById('pasteZone').classList.toggle('selected', cual === 'pegar');
+}
+
 // Zona de pegado dedicada: clic aquí y Ctrl+V pega una imagen del portapapeles
-// y la geolocaliza — funciona junto con (no en vez de) el botón "Elegir foto".
+// y la geolocaliza — funciona junto con (no en vez de) el botón "Elige foto".
 const pasteZone = document.getElementById('pasteZone');
 pasteZone.addEventListener('paste', (e) => {
   const cd = e.clipboardData || window.clipboardData;
@@ -1138,6 +1161,7 @@ pasteZone.addEventListener('paste', (e) => {
   }
   if (blob){
     e.preventDefault();
+    marcarBotonFotoUsado('pegar');
     pasteZone.classList.add('paste-ok');
     setTimeout(() => pasteZone.classList.remove('paste-ok'), 500);
     procesarFotoParaMapa(blob);
