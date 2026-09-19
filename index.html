@@ -83,28 +83,9 @@
     border:1px solid var(--border);
     box-shadow:0 12px 32px rgba(0,0,0,.35);
   }
-  /* Ficha abierta hacia la derecha del pin, separada 5x el ancho del pin,
-     con una cuña larga que cruza ese espacio y apunta al pin */
-  .leaflet-popup-tip-container{
-    position:absolute !important;
-    left:-186px !important;
-    top:50% !important;
-    margin:0 !important;
-    transform:translateY(-50%) !important;
-    width:186px !important;
-    height:30px !important;
-    overflow:visible !important;
-  }
-  .leaflet-popup-tip{
-    all:unset;
-    display:block;
-    width:0;height:0;
-    margin:0;
-    border-top:9px solid transparent;
-    border-bottom:9px solid transparent;
-    border-right:186px solid var(--panel);
-    opacity:.85;
-  }
+  /* Ficha abierta hacia la derecha del pin, separada 5x el ancho del pin.
+     Sin cuña/indicador — se retiró por pedido del usuario. */
+  .leaflet-popup-tip-container{ display:none !important; }
   .leaflet-popup-content{margin:0;width:560px !important;}
 
   .ficha{padding:16px;}
@@ -115,14 +96,25 @@
   .ficha .badge{
     display:inline-block;font-size:.68rem;font-weight:700;
     padding:2px 8px;border-radius:20px;background:rgba(0,150,120,.12);
-    color:#00987a;margin-bottom:10px;
+    color:#00987a;margin-bottom:8px;
   }
+  .ficha-title-input{
+    display:block;width:100%;text-align:center;border:none;
+    background:transparent;font-family:inherit;font-weight:800;
+    font-size:1.05rem;color:var(--orange);padding:4px 6px;
+    border-radius:6px;margin:0 auto 4px auto;
+  }
+  .ficha-title-input.ficha-auspiciador-input{
+    font-size:.95rem;color:#334155;font-weight:800;margin-bottom:8px;
+  }
+  .ficha-title-input:focus{outline:none;background:var(--panel-2);}
+  .ficha-title-input::placeholder{color:var(--text-dim);font-weight:600;}
   .ficha-columns{display:grid;grid-template-columns:1fr 1fr;gap:0 18px;}
   .field-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
   .field-group{margin-bottom:9px;}
   .field-group label{
-    display:block;font-size:.74rem;text-transform:uppercase;
-    letter-spacing:.03em;color:#334155;margin-bottom:3px;font-weight:800;
+    display:block;font-size:.74rem;
+    letter-spacing:.01em;color:#334155;margin-bottom:3px;font-weight:800;
   }
   .field-fixed{font-size:.85rem;color:var(--text);}
   .field-group input, .field-group textarea, .field-group select{
@@ -161,10 +153,21 @@
   .clave-box.clave-ok{background:#00987a;border-color:#00987a;color:#fff;}
   .clave-box.clave-err{background:#dc2626;border-color:#dc2626;color:#fff;}
 
-  /* Pin resaltado mientras su ficha está abierta */
+  /* Pin resaltado mientras su ficha está abierta: se agranda un poco y
+     muestra una estrella blanca en el centro (sin halo de color) */
   .crv-div-icon.marker-selected .marker-pin{
-    box-shadow:0 0 0 6px rgba(249,115,22,.45), 0 2px 8px rgba(0,0,0,.5);
-    transform:rotate(-45deg) scale(1.18);
+    box-shadow:0 3px 10px rgba(0,0,0,.55);
+    transform:rotate(-45deg) scale(1.22);
+  }
+  .crv-div-icon.marker-selected .marker-pin::after{
+    content:"★";
+    position:absolute;
+    top:50%;left:50%;
+    transform:translate(-50%,-50%) rotate(45deg);
+    color:#fff;
+    font-size:15px;
+    line-height:1;
+    text-shadow:0 1px 2px rgba(0,0,0,.5);
   }
   .crv-div-icon.marker-selected{ z-index:1000 !important; }
 
@@ -183,6 +186,7 @@
     transform:rotate(-45deg);
     border:3px solid #fff;
     box-shadow:0 1px 4px rgba(0,0,0,.5);
+    position:relative;
   }
   .marker-pin.green{background:var(--teal);}
   .marker-pin.red{background:#f85149;}
@@ -208,6 +212,19 @@
   }
   .foto-popup-content{padding:6px;}
   .foto-popup-content img{max-width:260px;max-height:260px;border-radius:8px;display:block;object-fit:cover;}
+
+  /* Widgets para agregar una foto geolocalizada: botón de carpeta + zona de pegado */
+  .icon-svg{width:16px;height:16px;flex-shrink:0;}
+  .paste-zone{
+    display:flex;align-items:center;gap:6px;
+    border:1.5px dashed rgba(255,255,255,.3);border-radius:8px;
+    padding:8px 14px;font-size:.8rem;font-weight:700;color:var(--text);
+    background:rgba(255,255,255,.03);cursor:text;user-select:none;
+    transition:all .15s;
+  }
+  .paste-zone:hover{border-color:var(--orange);}
+  .paste-zone:focus{outline:none;border-color:var(--orange);background:rgba(249,115,22,.08);}
+  .paste-zone.paste-ok{border-color:var(--teal);background:rgba(0,212,170,.12);}
 
   #addModeBanner{
     position:absolute;top:70px;left:50%;transform:translateX(-50%);
@@ -273,8 +290,15 @@
     <div class="status-text" id="centerText" style="font-weight:700;color:var(--orange);"></div>
     <div class="toolbar">
       <button id="btnLock">🔒 Bloqueado</button>
-      <button id="btnAddFoto" title="También puedes pegar una imagen con Ctrl+V en cualquier parte de la pantalla">📷 Agregar foto (o Ctrl+V)</button>
+      <button id="btnAddFoto" title="Elegir una foto desde una carpeta">
+        <svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+        Elegir foto
+      </button>
       <input type="file" id="fotoFileInput" accept="image/*" style="display:none;">
+      <div class="paste-zone" id="pasteZone" tabindex="0" title="Haz clic aquí y presiona Ctrl+V para pegar una imagen copiada">
+        <svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2" width="8" height="4" rx="1"></rect><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path></svg>
+        Pega aquí (Ctrl+V)
+      </div>
       <button id="btnAddMode">➕ Agregar ubicación</button>
       <button id="btnRefresh">🔄 Actualizar</button>
     </div>
@@ -586,7 +610,8 @@ function buildFichaHTML(loc){
   return `
     <div class="ficha" data-id="${loc.id}">
       <span class="badge">${escapeHtml(loc.categoria || 'Sin categoría')}</span>
-      <h3>${escapeHtml(loc.nombre)}</h3>
+      <input type="text" class="ficha-title-input" data-field="nombre" value="${escapeHtml(loc.nombre||'')}" placeholder="NOMBRE DEL PUNTO">
+      <input type="text" class="ficha-title-input ficha-auspiciador-input" data-field="auspiciador" value="${escapeHtml(loc.auspiciador||'')}" placeholder="AUSPICIADOR">
       <div class="addr">${escapeHtml(loc.direccion || '')}</div>
 
       <div class="ficha-columns">
@@ -601,7 +626,7 @@ function buildFichaHTML(loc){
               </select>
             </div>
             <div class="field-group">
-              <label>Soporte principal</label>
+              <label>Soporte ppal</label>
               <select data-field="soportePrincipal">
                 <option value="">—</option>
                 ${['Stand','Arco'].map(o =>
@@ -611,12 +636,12 @@ function buildFichaHTML(loc){
           </div>
           <div class="field-grid">
             <div class="field-group">
-              <label>${locked?'🔒 ':''}Superficie disponible</label>
+              <label>${locked?'🔒 ':''}Superficie disp.</label>
               <input type="text" data-field="superficieDisponible" placeholder="m²" value="${escapeHtml(loc.superficieDisponible||'')}" ${locked?'disabled':''}>
             </div>
             <div class="field-group">
-              <label>Auspiciador</label>
-              <input type="text" data-field="auspiciador" value="${escapeHtml(loc.auspiciador||'')}">
+              <label>Ofrecido a algún auspiciador</label>
+              <input type="text" data-field="ofrecidoAuspiciador" value="${escapeHtml(loc.ofrecidoAuspiciador||'')}">
             </div>
           </div>
           <div class="field-group">
@@ -625,10 +650,6 @@ function buildFichaHTML(loc){
               <input type="date" data-field="fechaInicio" value="${escapeHtml(loc.fechaInicio||'')}">
               <input type="date" data-field="fechaTermino" value="${escapeHtml(loc.fechaTermino||'')}">
             </div>
-          </div>
-          <div class="field-group">
-            <label>Ofrecido a algún auspiciador</label>
-            <input type="text" data-field="ofrecidoAuspiciador" value="${escapeHtml(loc.ofrecidoAuspiciador||'')}">
           </div>
         </div>
         <div class="col-right">
@@ -656,13 +677,22 @@ function buildFichaHTML(loc){
   `;
 }
 
-const EDITABLE_FIELDS = ["ruido","soportePrincipal","auspiciador","fechaInicio","fechaTermino","ofrecidoAuspiciador","objetivos","notas","superficieDisponible"];
+const EDITABLE_FIELDS = ["nombre","ruido","soportePrincipal","auspiciador","fechaInicio","fechaTermino","ofrecidoAuspiciador","objetivos","notas","superficieDisponible"];
 
 function wireFichaEvents(popup, loc, marker){
   const el = popup.getElement();
   if (!el) return;
   const btn = el.querySelector('.save-btn');
   const msg = el.querySelector('.save-msg');
+
+  // Nombre y Auspiciador se ingresan siempre en mayúscula, aunque el teclado esté en minúscula
+  el.querySelectorAll('.ficha-title-input').forEach(inp => {
+    inp.addEventListener('input', () => {
+      const pos = inp.selectionStart;
+      inp.value = inp.value.toUpperCase();
+      inp.setSelectionRange(pos, pos);
+    });
+  });
 
   const photoDrop = el.querySelector('.photo-drop');
   if (photoDrop){
@@ -705,12 +735,19 @@ function wireFichaEvents(popup, loc, marker){
       if (result && result.foto) updated.foto = result.foto;
       Object.assign(loc, updated);
       if (marker) marker.setIcon(buildIcon(loc));
-      msg.textContent = "Guardado ✓";
-      msg.className = "save-msg ok";
-      showToast("Cambios guardados");
+      if (result && result.warning){
+        // se guardó todo lo demás, pero la foto específicamente falló al subir
+        msg.textContent = result.warning;
+        msg.className = "save-msg err";
+        showToast("Guardado, pero la foto no se subió");
+      } else {
+        msg.textContent = "Guardado ✓";
+        msg.className = "save-msg ok";
+        showToast("Cambios guardados");
+      }
     }catch(err){
       console.error(err);
-      msg.textContent = "Error al guardar";
+      msg.textContent = "Error: " + (err.message || "no se pudo guardar");
       msg.className = "save-msg err";
     }finally{
       btn.disabled = false;
@@ -1085,20 +1122,27 @@ document.getElementById('fotoFileInput').addEventListener('change', (e) => {
   e.target.value = '';
 });
 
-// Pegar una foto con Ctrl+V en cualquier parte de la pantalla principal
-// también la geolocaliza — funciona junto con (no en vez de) el botón de arriba.
-document.addEventListener('paste', (e) => {
-  // si el pegado ocurre dentro del cuadro de foto de una ficha ya abierta,
-  // ese cuadro ya lo maneja (queda asociada a esa ubicación, no como punto nuevo)
-  if (e.target.closest && e.target.closest('.photo-drop')) return;
-  const items = (e.clipboardData || window.clipboardData).items;
-  for (const item of items){
-    if (item.type.indexOf('image') === 0){
-      const blob = item.getAsFile();
-      procesarFotoParaMapa(blob);
-      e.preventDefault();
-      break;
+// Zona de pegado dedicada: clic aquí y Ctrl+V pega una imagen del portapapeles
+// y la geolocaliza — funciona junto con (no en vez de) el botón "Elegir foto".
+const pasteZone = document.getElementById('pasteZone');
+pasteZone.addEventListener('paste', (e) => {
+  const cd = e.clipboardData || window.clipboardData;
+  let blob = null;
+  if (cd && cd.items){
+    for (const item of cd.items){
+      if (item.type && item.type.indexOf('image') === 0){ blob = item.getAsFile(); break; }
     }
+  }
+  if (!blob && cd && cd.files && cd.files.length && cd.files[0].type.indexOf('image') === 0){
+    blob = cd.files[0];
+  }
+  if (blob){
+    e.preventDefault();
+    pasteZone.classList.add('paste-ok');
+    setTimeout(() => pasteZone.classList.remove('paste-ok'), 500);
+    procesarFotoParaMapa(blob);
+  } else {
+    showToast('No se detectó ninguna imagen en el portapapeles');
   }
 });
 
