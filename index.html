@@ -253,22 +253,36 @@
     box-shadow:0 4px 12px rgba(0,0,0,.4);
   }
 
-  /* Panel flotante de filtros */
+  /* Panel de filtros: barra lateral fija con todas las opciones a la vista,
+     sin menús emergentes */
   #filterPanel{
-    position:fixed;top:90px;right:16px;
-    display:flex;flex-direction:column;align-items:flex-end;gap:8px;z-index:900;
+    position:fixed;top:90px;right:16px;bottom:16px;width:240px;
+    background:rgba(13,17,23,.88);border:1px solid rgba(255,255,255,.12);
+    border-radius:14px;padding:14px;overflow-y:auto;z-index:900;
+    display:flex;flex-direction:column;gap:16px;
+    backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+    box-shadow:0 8px 24px rgba(0,0,0,.4);
   }
-  .filter-btn{
-    min-width:88px;padding:13px 18px;border-radius:12px;
-    background:#dc2626;border:2px solid #7f1d1d;color:#ffffff;
-    font-size:.88rem;font-weight:800;line-height:1.2;text-align:center;
-    white-space:nowrap;text-shadow:0 1px 2px rgba(0,0,0,.35);
-    display:flex;align-items:center;justify-content:center;
-    cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.4);
+  .filter-section-title{
+    font-size:.92rem;font-weight:800;color:#fff;margin-bottom:8px;
+    padding-bottom:5px;border-bottom:2px solid #dc2626;
+  }
+  .filter-section.active .filter-section-title{color:#ff8a8a;border-color:#ff8a8a;}
+  .filter-section-options{display:flex;flex-wrap:wrap;gap:6px;}
+  .filter-chip-opt{
+    padding:7px 13px;border-radius:14px;
+    background:#dc2626;border:2px solid #7f1d1d;color:#fff;
+    font-size:.8rem;font-weight:700;cursor:pointer;text-align:center;
     transition:all .15s;
   }
-  .filter-btn:hover{background:#ef4444;border-color:#fff;}
-  .filter-btn.active{background:#991b1b;border-color:#fff;color:#fff;}
+  .filter-chip-opt:hover{background:#ef4444;}
+  .filter-chip-opt.selected{background:#991b1b;border-color:#fff;}
+  .filter-section-options .filter-text-input{
+    width:100%;background:var(--panel-2);border:1px solid var(--border);
+    color:var(--text);border-radius:6px;padding:7px 9px;font-size:.85rem;
+  }
+  .filter-empty{font-size:.72rem;color:rgba(255,255,255,.5);}
+
   .filter-popover{
     position:fixed;right:72px;background:var(--panel);border:1px solid var(--border);
     border-radius:10px;padding:12px;min-width:190px;
@@ -276,16 +290,6 @@
   }
   .filter-popover.show{display:block;}
   .filter-popover h4{margin:0 0 8px;font-size:.78rem;color:var(--orange);}
-  .filter-popover .opt-row{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:4px;}
-  .filter-chip{
-    padding:4px 10px;border-radius:16px;border:1px solid var(--border);
-    background:var(--panel-2);color:var(--text);font-size:.72rem;cursor:pointer;font-weight:700;
-  }
-  .filter-chip.selected{background:var(--teal);border-color:var(--teal);color:#0d1117;}
-  .filter-popover input[type=text]{
-    width:100%;background:var(--panel-2);border:1px solid var(--border);
-    color:var(--text);border-radius:6px;padding:6px 8px;font-size:.8rem;
-  }
   .filter-clear{
     margin-top:8px;font-size:.7rem;color:var(--text-dim);text-decoration:underline;
     cursor:pointer;background:none;border:none;padding:0;
@@ -326,7 +330,6 @@
   <div class="filter-popover" id="lockPopover"></div>
   <div id="map"></div>
   <div id="filterPanel"></div>
-  <div class="filter-popover" id="filterPopover"></div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -588,14 +591,15 @@ function renderMarkers(){
     const marker = L.marker([loc.lat, loc.lng], { icon: buildIcon(loc) });
     marker.bindPopup(() => buildFichaHTML(loc), {
       minWidth: 280, autoPanPadding: [40,40],
-      closeOnClick: false,  // no cerrar al hacer clic en el mapa mientras se edita
-      autoPan: false        // el posicionamiento lo maneja nuestro propio centrado
+      autoPan: false   // el posicionamiento lo maneja nuestro propio centrado
     });
     marker.on('click', () => centrarPinEnPantalla(marker));
     marker.on('popupopen', (e) => {
       const elm = marker.getElement();
       if (elm) elm.classList.add('marker-selected');
       selectedMarker = marker;
+      e.popup.options.closeOnClick = true; // recién abierta: nada editado aún, se puede cerrar al hacer clic fuera
+      limitarAlturaFicha(e.popup);
       wireFichaEvents(e.popup, loc, marker);
     });
     marker.on('popupclose', () => {
@@ -606,6 +610,20 @@ function renderMarkers(){
     marker.addTo(markersLayer);
     loc.__marker = marker;
   });
+}
+
+// La ficha nunca puede quedar tapada por el header (ni taparlo ella): se le
+// pone un alto máximo real, calculado según el espacio disponible bajo el
+// header, con scroll interno si el contenido no cabe.
+function limitarAlturaFicha(popup){
+  const el = popup.getElement();
+  if (!el) return;
+  const wrapper = el.querySelector('.leaflet-popup-content-wrapper');
+  if (!wrapper) return;
+  const headerH = document.querySelector('header').offsetHeight;
+  const disponible = window.innerHeight - headerH - 24;
+  wrapper.style.maxHeight = disponible + 'px';
+  wrapper.style.overflowY = 'auto';
 }
 
 // Al hacer clic en un pin, el mapa se desplaza para dejarlo centrado
@@ -733,6 +751,15 @@ function wireFichaEvents(popup, loc, marker){
   if (!el) return;
   const btn = el.querySelector('.save-btn');
   const msg = el.querySelector('.save-msg');
+
+  // Mientras no se edite nada, la ficha se cierra normalmente al hacer clic
+  // afuera. En cuanto se toca cualquier campo, deja de cerrarse sola hasta
+  // que el usuario la cierre a propósito (botón X u otro pin).
+  el.querySelectorAll('input, textarea, select').forEach(campo => {
+    const marcarEdicionEnCurso = () => { popup.options.closeOnClick = false; };
+    campo.addEventListener('input', marcarEdicionEnCurso);
+    campo.addEventListener('change', marcarEdicionEnCurso);
+  });
 
   // El título y el auspiciador son <textarea> que se auto-ajustan en altura,
   // así el texto siempre se ve completo (pasa a una segunda línea si hace
@@ -986,101 +1013,57 @@ const FILTER_FIELDS = [
   { key:'objetivos', label:'Objetivos', type:'select', multi:true, options:() => OBJETIVOS_OPCIONES }
 ];
 let activeFilters = {};
-let openPopoverKey = null;
 
 function buildFilterPanel(){
   const panel = document.getElementById('filterPanel');
-  panel.innerHTML = FILTER_FIELDS.map(f =>
-    `<button class="filter-btn" data-key="${f.key}">${f.label}</button>`
-  ).join('');
-  panel.querySelectorAll('.filter-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const field = FILTER_FIELDS.find(f => f.key === btn.dataset.key);
-      togglePopover(btn, field);
-    });
-  });
+  panel.innerHTML = FILTER_FIELDS.map(f => renderFilterSection(f)).join('');
+  wireFilterPanelEvents();
 }
 
-function togglePopover(btn, field){
-  if (openPopoverKey === field.key){
-    closePopover();
-    return;
-  }
-  openPopover(btn, field);
-}
-
-function closePopover(){
-  const pop = document.getElementById('filterPopover');
-  pop.classList.remove('show');
-  openPopoverKey = null;
-}
-
-function openPopover(btn, field){
-  const pop = document.getElementById('filterPopover');
-  const rect = btn.getBoundingClientRect();
-  pop.style.top = rect.top + 'px';
-  pop.innerHTML = renderPopoverContent(field);
-  pop.classList.add('show');
-  openPopoverKey = field.key;
-  wirePopoverEvents(field, btn);
-}
-
-function renderPopoverContent(field){
-  const current = activeFilters[field.key];
-  let body = `<h4>${field.label}</h4>`;
-  if (field.type === 'select'){
-    const opts = field.options();
-    body += opts.length
-      ? `<div class="opt-row">${opts.map(o =>
-          `<span class="filter-chip ${current===o?'selected':''}" data-val="${o}">${o}</span>`
-        ).join('')}</div>`
-      : `<div style="font-size:.72rem;color:var(--text-dim);">Sin datos aún</div>`;
-  } else if (field.type === 'presence'){
-    body += `<div class="opt-row">${['Con','Sin'].map(o =>
-      `<span class="filter-chip ${current===o?'selected':''}" data-val="${o}">${o}</span>`
-    ).join('')}</div>`;
+function renderFilterSection(f){
+  const current = activeFilters[f.key];
+  let optionsHtml;
+  if (f.type === 'select'){
+    const opts = f.options();
+    optionsHtml = opts.length
+      ? opts.map(o =>
+          `<span class="filter-chip-opt ${current===o?'selected':''}" data-key="${f.key}" data-val="${o}">${o}</span>`
+        ).join('')
+      : `<span class="filter-empty">Sin datos aún</span>`;
+  } else if (f.type === 'presence'){
+    optionsHtml = ['Con','Sin'].map(o =>
+      `<span class="filter-chip-opt ${current===o?'selected':''}" data-key="${f.key}" data-val="${o}">${o}</span>`
+    ).join('');
   } else {
-    body += `<input type="text" id="filterTextInput" placeholder="Buscar…" value="${current||''}">`;
+    optionsHtml = `<input type="text" class="filter-text-input" data-key="${f.key}" placeholder="Buscar…" value="${current||''}">`;
   }
-  if (current) body += `<button class="filter-clear" id="clearFilterBtn">Quitar filtro</button>`;
-  return body;
+  return `
+    <div class="filter-section ${current?'active':''}">
+      <div class="filter-section-title">${f.label}</div>
+      <div class="filter-section-options">${optionsHtml}</div>
+    </div>
+  `;
 }
 
-function wirePopoverEvents(field, btn){
-  const pop = document.getElementById('filterPopover');
-  pop.querySelectorAll('.filter-chip').forEach(chip => {
+function wireFilterPanelEvents(){
+  const panel = document.getElementById('filterPanel');
+  panel.querySelectorAll('.filter-chip-opt').forEach(chip => {
     chip.addEventListener('click', () => {
+      const key = chip.dataset.key;
       const val = chip.dataset.val;
-      if (activeFilters[field.key] === val) delete activeFilters[field.key];
-      else activeFilters[field.key] = val;
+      if (activeFilters[key] === val) delete activeFilters[key];
+      else activeFilters[key] = val;
       renderMarkers();
-      updateFilterButtonStates();
-      openPopover(btn, field);
+      buildFilterPanel();
     });
   });
-  const textInput = pop.querySelector('#filterTextInput');
-  if (textInput){
-    textInput.addEventListener('input', () => {
-      const v = textInput.value.trim();
-      if (v) activeFilters[field.key] = v; else delete activeFilters[field.key];
+  panel.querySelectorAll('.filter-text-input').forEach(input => {
+    input.addEventListener('input', () => {
+      const v = input.value.trim();
+      if (v) activeFilters[input.dataset.key] = v; else delete activeFilters[input.dataset.key];
       renderMarkers();
-      updateFilterButtonStates();
+      // No reconstruimos el panel aquí para no perder el foco mientras se escribe.
     });
-  }
-  const clearBtn = pop.querySelector('#clearFilterBtn');
-  if (clearBtn){
-    clearBtn.addEventListener('click', () => {
-      delete activeFilters[field.key];
-      renderMarkers();
-      updateFilterButtonStates();
-      closePopover();
-    });
-  }
-}
-
-function updateFilterButtonStates(){
-  document.querySelectorAll('.filter-btn').forEach(btn => {
-    btn.classList.toggle('active', !!activeFilters[btn.dataset.key]);
   });
 }
 
@@ -1103,14 +1086,6 @@ function matchesFilters(loc){
     return String(source).toLowerCase().includes(val.toLowerCase());
   });
 }
-
-document.addEventListener('click', (e) => {
-  const pop = document.getElementById('filterPopover');
-  const panel = document.getElementById('filterPanel');
-  if (openPopoverKey && !pop.contains(e.target) && !panel.contains(e.target)){
-    closePopover();
-  }
-});
 
 /* =========================================================
    CLAVE GLOBAL (desbloquea Ruido / Superficie disponible
