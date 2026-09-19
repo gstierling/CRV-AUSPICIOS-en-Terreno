@@ -422,7 +422,7 @@ function renderFotoMarkers(){
   fotoPoints.forEach(fp => {
     const marker = L.marker([fp.lat, fp.lng], { icon: buildFotoIcon() });
     marker.bindPopup(
-      `<div class="foto-popup-content"><img src="${fp.foto}" alt="Foto" onerror="this.outerHTML='⚠️ La foto no cargó (puede que Drive la esté bloqueando)';"></div>`,
+      `<div class="foto-popup-content">${fp.foto ? `<img src="${fp.foto}" alt="Foto" onerror="this.outerHTML='⚠️ La foto no cargó';">` : '⚠️ Sin foto'}</div>`,
       { maxWidth: 300 }
     );
     marker.addTo(fotoMarkersLayer);
@@ -669,7 +669,7 @@ function buildFichaHTML(loc){
           <div class="field-group">
             <label>Foto</label>
             <div class="photo-drop" tabindex="0">
-              <img class="photo-preview" style="display:${loc.foto ? 'block':'none'}" src="${loc.foto||''}" onerror="this.style.display='none'; this.nextElementSibling.style.display='block'; this.nextElementSibling.textContent='⚠️ La foto no cargó (puede que Drive la esté bloqueando) — vuelve a pegarla';">
+              <img class="photo-preview" style="display:${loc.foto ? 'block':'none'}" ${loc.foto ? `src="${loc.foto}"` : ''} onerror="if(this.getAttribute('src')){ this.style.display='none'; this.nextElementSibling.style.display='block'; this.nextElementSibling.textContent='⚠️ La foto no cargó — vuelve a pegarla'; }">
               <div class="photo-hint" style="display:${loc.foto ? 'none':'block'}">Copia una imagen y presiona Ctrl+V aquí</div>
             </div>
           </div>
