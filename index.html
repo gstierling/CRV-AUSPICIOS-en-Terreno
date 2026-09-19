@@ -421,10 +421,16 @@ function renderFotoMarkers(){
   fotoMarkersLayer.clearLayers();
   fotoPoints.forEach(fp => {
     const marker = L.marker([fp.lat, fp.lng], { icon: buildFotoIcon() });
-    marker.bindPopup(
-      `<div class="foto-popup-content">${fp.foto ? `<img src="${fp.foto}" alt="Foto" onerror="this.outerHTML='⚠️ La foto no cargó';">` : '⚠️ Sin foto'}</div>`,
-      { maxWidth: 300 }
-    );
+    marker.bindPopup(`<div class="foto-popup-content">Cargando…</div>`, { maxWidth: 300 });
+    marker.on('popupopen', (e) => {
+      const container = e.popup.getElement()?.querySelector('.foto-popup-content');
+      if (!container) return;
+      resolverUrlFoto(fp.foto).then(dataUrl => {
+        container.innerHTML = dataUrl
+          ? `<img src="${dataUrl}" alt="Foto">`
+          : '⚠️ La foto no cargó';
+      });
+    });
     marker.addTo(fotoMarkersLayer);
   });
 }
@@ -669,8 +675,8 @@ function buildFichaHTML(loc){
           <div class="field-group">
             <label>Foto</label>
             <div class="photo-drop" tabindex="0">
-              <img class="photo-preview" style="display:${loc.foto ? 'block':'none'}" ${loc.foto ? `src="${loc.foto}"` : ''} onerror="if(this.getAttribute('src')){ this.style.display='none'; this.nextElementSibling.style.display='block'; this.nextElementSibling.textContent='⚠️ La foto no cargó — vuelve a pegarla'; }">
-              <div class="photo-hint" style="display:${loc.foto ? 'none':'block'}">Copia una imagen y presiona Ctrl+V aquí</div>
+              <img class="photo-preview" style="display:none">
+              <div class="photo-hint" style="display:block">${loc.foto ? 'Cargando foto…' : 'Copia una imagen y presiona Ctrl+V aquí'}</div>
             </div>
           </div>
         </div>
@@ -703,6 +709,22 @@ function wireFichaEvents(popup, loc, marker){
 
   const photoDrop = el.querySelector('.photo-drop');
   if (photoDrop){
+    // Si ya hay una foto guardada, pedirle al backend los datos reales
+    // (la URL guardada no sirve como src directo — hay que resolverla).
+    if (loc.foto){
+      const img = photoDrop.querySelector('.photo-preview');
+      const hint = photoDrop.querySelector('.photo-hint');
+      resolverUrlFoto(loc.foto).then(dataUrl => {
+        if (dataUrl){
+          img.src = dataUrl;
+          img.style.display = 'block';
+          hint.style.display = 'none';
+        } else {
+          hint.textContent = '⚠️ La foto no cargó — vuelve a pegarla';
+        }
+      });
+    }
+
     photoDrop.addEventListener('paste', (e) => {
       const items = (e.clipboardData || window.clipboardData).items;
       for (const item of items){
@@ -761,6 +783,23 @@ function wireFichaEvents(popup, loc, marker){
       btn.textContent = "💾 Guardar cambios";
     }
   });
+}
+
+// Las fotos se guardan como una URL que apunta a este mismo script
+// (no se puede usar directo como src de una <img> — Apps Script no permite
+// devolver un archivo binario desde un Web App). Esta función le pide al
+// backend los datos reales (base64) y arma un data URI utilizable.
+async function resolverUrlFoto(url){
+  if (!url) return '';
+  try{
+    const res = await fetch(url);
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    return data.dataUrl || '';
+  }catch(err){
+    console.error('Error al resolver foto:', err);
+    return '';
+  }
 }
 
 async function saveLocation(payload){
