@@ -165,6 +165,21 @@
   .chip-checkbox input{width:auto !important;margin:0;accent-color:#00987a;}
   .chip-checkbox.checked{background:#00987a;border-color:#00987a;color:#fff;}
 
+  .objetivos-dropdown{position:relative;}
+  .objetivos-summary{
+    width:100%;background:var(--panel-2);border:1px solid var(--border);
+    color:var(--text);border-radius:6px;padding:6px 8px;font-family:inherit;
+    font-size:1rem;cursor:pointer;
+    display:flex;align-items:center;justify-content:space-between;gap:6px;
+  }
+  .objetivos-summary::after{content:"▾";color:var(--orange);font-size:.8rem;flex-shrink:0;}
+  .objetivos-summary.placeholder{color:var(--text-dim);}
+  .objetivos-panel{
+    display:none;flex-wrap:wrap;gap:6px;margin-top:6px;
+    padding:8px;background:var(--panel-2);border:1px solid var(--border);border-radius:8px;
+  }
+  .objetivos-dropdown.open .objetivos-panel{display:flex;}
+
   /* Pin resaltado mientras su ficha está abierta: se agranda un poco y
      muestra una estrella blanca en el centro (sin halo de color) */
   .crv-div-icon.marker-selected .marker-pin{
@@ -219,7 +234,7 @@
   .foto-div-icon{background:transparent;border:none;}
   .foto-point{
     width:18px;height:18px;border-radius:50%;
-    background:#dc2626;border:4px solid #facc15;
+    background:#dc2626;border:4px solid #fde047;
     box-shadow:0 1px 4px rgba(0,0,0,.6);
   }
   .foto-popup-content{padding:6px;}
@@ -572,7 +587,6 @@ function demoData(){
       id: "demo-1",
       nombre: "Punto de ejemplo",
       direccion: "Av. Providencia 1234, Santiago",
-      categoria: "Punto de control",
       lat: -33.4372, lng: -70.6206,
       notas: "Este es un dato de ejemplo — conecta tu Google Sheet para ver datos reales.",
       ruido: "3", soportePrincipal: "Stand", auspiciador: "Marca Ejemplo",
@@ -668,7 +682,6 @@ function buildFichaHTML(loc){
   const locked = !unlockedGlobal;
   return `
     <div class="ficha" data-id="${loc.id}">
-      <span class="badge">${escapeHtml(loc.categoria || 'Sin categoría')}</span>
       <textarea class="ficha-title-input" data-field="nombre" rows="1" placeholder="NOMBRE DEL PUNTO">${escapeHtml(loc.nombre||'')}</textarea>
       <textarea class="ficha-title-input ficha-auspiciador-input" data-field="auspiciador" rows="1" placeholder="AUSPICIADOR">${escapeHtml(loc.auspiciador||'')}</textarea>
       <div class="addr">${escapeHtml(loc.direccion || '')}</div>
@@ -712,13 +725,16 @@ function buildFichaHTML(loc){
         <div class="col-right">
           <div class="field-group">
             <label>Objetivos</label>
-            <div class="chip-group" data-objetivos-group>
-              ${OBJETIVOS_OPCIONES.map(o => {
-                const marcado = (loc.objetivos||'').split(',').map(s=>s.trim()).includes(o);
-                return `<label class="chip-checkbox ${marcado?'checked':''}">
-                  <input type="checkbox" value="${o}" ${marcado?'checked':''}> ${o}
-                </label>`;
-              }).join('')}
+            <div class="objetivos-dropdown">
+              <div class="objetivos-summary ${(loc.objetivos||'').trim()?'':'placeholder'}" tabindex="0">${escapeHtml(loc.objetivos) || 'Elegir objetivos…'}</div>
+              <div class="objetivos-panel">
+                ${OBJETIVOS_OPCIONES.map(o => {
+                  const marcado = (loc.objetivos||'').split(',').map(s=>s.trim()).includes(o);
+                  return `<label class="chip-checkbox ${marcado?'checked':''}">
+                    <input type="checkbox" value="${o}" ${marcado?'checked':''}> ${o}
+                  </label>`;
+                }).join('')}
+              </div>
             </div>
             <input type="hidden" data-field="objetivos" value="${escapeHtml(loc.objetivos||'')}">
           </div>
@@ -784,16 +800,24 @@ function wireFichaEvents(popup, loc, marker){
     });
   });
 
-  // Objetivos: chips de selección múltiple que mantienen sincronizado el
-  // campo oculto que realmente se guarda (lista separada por comas).
-  const objetivosGroup = el.querySelector('[data-objetivos-group]');
-  if (objetivosGroup){
+  // Objetivos: menú desplegable de selección múltiple (no excluyente, como
+  // Ruido pero permitiendo varias). El resumen muestra lo ya elegido
+  // separado por comas; al hacer clic se despliegan las demás opciones.
+  const objetivosDropdown = el.querySelector('.objetivos-dropdown');
+  if (objetivosDropdown){
+    const summary = objetivosDropdown.querySelector('.objetivos-summary');
     const hiddenObjetivos = el.querySelector('[data-field="objetivos"]');
-    objetivosGroup.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+    summary.addEventListener('click', () => {
+      objetivosDropdown.classList.toggle('open');
+    });
+    objetivosDropdown.querySelectorAll('input[type="checkbox"]').forEach(cb => {
       cb.addEventListener('change', () => {
         cb.closest('.chip-checkbox').classList.toggle('checked', cb.checked);
-        const seleccionados = Array.from(objetivosGroup.querySelectorAll('input[type="checkbox"]:checked')).map(c => c.value);
-        hiddenObjetivos.value = seleccionados.join(', ');
+        const seleccionados = Array.from(objetivosDropdown.querySelectorAll('input[type="checkbox"]:checked')).map(c => c.value);
+        const texto = seleccionados.join(', ');
+        hiddenObjetivos.value = texto;
+        summary.textContent = texto || 'Elegir objetivos…';
+        summary.classList.toggle('placeholder', !texto);
       });
     });
   }
@@ -969,11 +993,10 @@ async function openCreateForm(latlng){
   const nombre = prompt("Nombre de la ubicación:");
   if (!nombre) return;
   const direccion = prompt("Dirección:") || "";
-  const categoria = prompt("Categoría:") || "";
 
   const newLoc = {
     id: 'loc-' + Date.now(),
-    nombre, direccion, categoria,
+    nombre, direccion,
     lat: latlng.lat, lng: latlng.lng,
     notas: "", ruido: "", soportePrincipal: "", auspiciador: "",
     fechaInicio: "", fechaTermino: "", ofrecidoAuspiciador: "", objetivos: "", foto: "",
@@ -1004,10 +1027,9 @@ async function openCreateForm(latlng){
    FILTROS (panel flotante lateral)
    ========================================================= */
 const FILTER_FIELDS = [
-  { key:'categoria', label:'Categoría', type:'select', options:() => [...new Set(locations.map(l=>l.categoria).filter(Boolean))] },
   { key:'ruido', label:'Ruido', type:'select', options:() => ['1','2','3','4','5'] },
   { key:'soportePrincipal', label:'Soporte ppal', type:'select', options:() => ['Stand','Arco'] },
-  { key:'auspiciador', label:'Auspiciador', type:'presence' },
+  { key:'auspiciador', label:'Auspiciador', type:'select', options:() => [...new Set(locations.map(l=>l.auspiciador).filter(Boolean))] },
   { key:'superficieDisponible', label:'Superficie disp.', type:'text' },
   { key:'ofrecidoAuspiciador', label:'Auspiciador posible', type:'text' },
   { key:'objetivos', label:'Objetivos', type:'select', multi:true, options:() => OBJETIVOS_OPCIONES }
