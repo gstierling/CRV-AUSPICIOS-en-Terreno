@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Mapa de Ubicaciones — CRV</title>
+<title>CicloRecreoVía AUSPICIOS UBICACIONES</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exif-js/2.3.0/exif.js"></script>
 <style>
@@ -22,8 +22,8 @@
   #app{display:flex;flex-direction:column;height:100vh;}
 
   header{
-    background:var(--panel);
-    border-bottom:1px solid var(--border);
+    background:#1e40af;
+    border-bottom:1px solid #1e3a8a;
     padding:14px 20px;
     display:flex;
     align-items:center;
@@ -33,18 +33,19 @@
     z-index:10;
   }
   header h1{
-    font-size:1.15rem;
+    font-size:1.725rem;
     font-weight:800;
     margin:0;
     display:flex;
     align-items:center;
     gap:10px;
+    color:#ffffff;
   }
   header h1 span.dot{
     width:10px;height:10px;border-radius:50%;background:var(--teal);
     box-shadow:0 0 8px var(--teal);
   }
-  .status-text{font-size:.75rem;color:var(--text-dim);}
+  .status-text{font-size:.75rem;color:rgba(255,255,255,.75);}
 
   .toolbar{display:flex;gap:8px;flex-wrap:wrap;}
   button{
@@ -101,6 +102,7 @@
     background:transparent;font-family:inherit;font-weight:800;
     font-size:1.05rem;color:#2563eb;padding:4px 6px;
     border-radius:6px;margin:0 auto 4px auto;
+    resize:none;overflow:hidden;line-height:1.3;
   }
   .ficha-title-input.ficha-auspiciador-input{
     font-size:1.19rem;color:#334155;font-weight:800;margin-bottom:8px;
@@ -119,7 +121,7 @@
   .field-group input, .field-group textarea, .field-group select{
     width:100%;background:var(--panel-2);border:1px solid var(--border);
     color:var(--text);border-radius:6px;padding:6px 8px;font-family:inherit;
-    font-size:.83rem;
+    font-size:1rem;
   }
   .field-group select:disabled, .field-group input:disabled{
     opacity:.5;cursor:not-allowed;
@@ -152,6 +154,17 @@
   .clave-box.clave-ok{background:#00987a;border-color:#00987a;color:#fff;}
   .clave-box.clave-err{background:#dc2626;border-color:#dc2626;color:#fff;}
 
+  .chip-group{display:flex;flex-wrap:wrap;gap:6px;}
+  .chip-checkbox{
+    display:flex;align-items:center;gap:5px;
+    border:1px solid var(--border);border-radius:16px;
+    padding:5px 11px;font-size:.85rem;font-weight:700;
+    background:var(--panel-2);color:var(--text);cursor:pointer;user-select:none;
+    transition:all .15s;
+  }
+  .chip-checkbox input{width:auto !important;margin:0;accent-color:#00987a;}
+  .chip-checkbox.checked{background:#00987a;border-color:#00987a;color:#fff;}
+
   /* Pin resaltado mientras su ficha está abierta: se agranda un poco y
      muestra una estrella blanca en el centro (sin halo de color) */
   .crv-div-icon.marker-selected .marker-pin{
@@ -164,7 +177,7 @@
     top:50%;left:50%;
     transform:translate(-50%,-50%) rotate(45deg);
     color:#fff;
-    font-size:15px;
+    font-size:20px;
     line-height:1;
     text-shadow:0 1px 2px rgba(0,0,0,.5);
   }
@@ -202,12 +215,12 @@
     box-shadow:0 2px 6px rgba(0,0,0,.4);
   }
 
-  /* Punto de foto geolocalizada: círculo rojo, 1/4 del ancho del pin (36px → 9px) */
+  /* Punto de foto geolocalizada: círculo rojo, ahora al doble (18px) con borde amarillo grueso */
   .foto-div-icon{background:transparent;border:none;}
   .foto-point{
-    width:9px;height:9px;border-radius:50%;
-    background:#dc2626;border:1.5px solid #fff;
-    box-shadow:0 1px 3px rgba(0,0,0,.6);
+    width:18px;height:18px;border-radius:50%;
+    background:#dc2626;border:4px solid #facc15;
+    box-shadow:0 1px 4px rgba(0,0,0,.6);
   }
   .foto-popup-content{padding:6px;}
   .foto-popup-content img{max-width:260px;max-height:260px;border-radius:8px;display:block;object-fit:cover;}
@@ -246,17 +259,16 @@
     display:flex;flex-direction:column;align-items:flex-end;gap:8px;z-index:900;
   }
   .filter-btn{
-    min-width:72px;padding:9px 14px;border-radius:12px;
-    background:rgba(220,38,38,.6);border:1px solid rgba(255,255,255,.15);color:#ffffff;
-    font-size:.72rem;font-weight:700;line-height:1.15;text-align:center;
-    white-space:nowrap;
+    min-width:88px;padding:13px 18px;border-radius:12px;
+    background:#dc2626;border:2px solid #7f1d1d;color:#ffffff;
+    font-size:.88rem;font-weight:800;line-height:1.2;text-align:center;
+    white-space:nowrap;text-shadow:0 1px 2px rgba(0,0,0,.35);
     display:flex;align-items:center;justify-content:center;
-    cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.3);
-    backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+    cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.4);
     transition:all .15s;
   }
-  .filter-btn:hover{border-color:#fff;background:rgba(220,38,38,.8);}
-  .filter-btn.active{background:#dc2626;border-color:#fff;color:#fff;}
+  .filter-btn:hover{background:#ef4444;border-color:#fff;}
+  .filter-btn.active{background:#991b1b;border-color:#fff;color:#fff;}
   .filter-popover{
     position:fixed;right:72px;background:var(--panel);border:1px solid var(--border);
     border-radius:10px;padding:12px;min-width:190px;
@@ -292,7 +304,7 @@
 <body>
 <div id="app">
   <header>
-    <h1><span class="dot"></span> Mapa de Ubicaciones — CRV</h1>
+    <h1><span class="dot"></span> CicloRecreoVía AUSPICIOS UBICACIONES</h1>
     <div class="status-text" id="statusText">Cargando ubicaciones…</div>
     <div class="status-text" id="centerText" style="font-weight:700;color:var(--orange);"></div>
     <div class="toolbar">
@@ -412,8 +424,8 @@ function buildFotoIcon(){
   return L.divIcon({
     html: '<div class="foto-point"></div>',
     className: 'foto-div-icon',
-    iconSize: [9, 9],
-    iconAnchor: [4.5, 4.5]
+    iconSize: [26, 26],
+    iconAnchor: [13, 13]
   });
 }
 
@@ -574,7 +586,12 @@ function renderMarkers(){
   markersLayer.clearLayers();
   locations.filter(matchesFilters).forEach(loc => {
     const marker = L.marker([loc.lat, loc.lng], { icon: buildIcon(loc) });
-    marker.bindPopup(() => buildFichaHTML(loc), { minWidth: 280, autoPanPadding: [40,40] });
+    marker.bindPopup(() => buildFichaHTML(loc), {
+      minWidth: 280, autoPanPadding: [40,40],
+      closeOnClick: false,  // no cerrar al hacer clic en el mapa mientras se edita
+      autoPan: false        // el posicionamiento lo maneja nuestro propio centrado
+    });
+    marker.on('click', () => centrarPinEnPantalla(marker));
     marker.on('popupopen', (e) => {
       const elm = marker.getElement();
       if (elm) elm.classList.add('marker-selected');
@@ -589,6 +606,17 @@ function renderMarkers(){
     marker.addTo(markersLayer);
     loc.__marker = marker;
   });
+}
+
+// Al hacer clic en un pin, el mapa se desplaza para dejarlo centrado
+// verticalmente y al 40% del ancho de la pantalla (de izquierda a derecha),
+// dejando espacio a la derecha para la ficha.
+function centrarPinEnPantalla(marker){
+  const size = map.getSize();
+  const targetPoint = L.point(size.x * 0.40, size.y * 0.50);
+  const currentPoint = map.latLngToContainerPoint(marker.getLatLng());
+  const delta = currentPoint.subtract(targetPoint);
+  map.panBy(delta, { animate: true });
 }
 
 // Ancho visual del pin y separación pedida: 5 veces ese ancho entre el
@@ -623,8 +651,8 @@ function buildFichaHTML(loc){
   return `
     <div class="ficha" data-id="${loc.id}">
       <span class="badge">${escapeHtml(loc.categoria || 'Sin categoría')}</span>
-      <input type="text" class="ficha-title-input" data-field="nombre" value="${escapeHtml(loc.nombre||'')}" placeholder="NOMBRE DEL PUNTO">
-      <input type="text" class="ficha-title-input ficha-auspiciador-input" data-field="auspiciador" value="${escapeHtml(loc.auspiciador||'')}" placeholder="AUSPICIADOR">
+      <textarea class="ficha-title-input" data-field="nombre" rows="1" placeholder="NOMBRE DEL PUNTO">${escapeHtml(loc.nombre||'')}</textarea>
+      <textarea class="ficha-title-input ficha-auspiciador-input" data-field="auspiciador" rows="1" placeholder="AUSPICIADOR">${escapeHtml(loc.auspiciador||'')}</textarea>
       <div class="addr">${escapeHtml(loc.direccion || '')}</div>
 
       <div class="ficha-columns">
@@ -666,7 +694,15 @@ function buildFichaHTML(loc){
         <div class="col-right">
           <div class="field-group">
             <label>Objetivos</label>
-            <textarea data-field="objetivos">${escapeHtml(loc.objetivos||'')}</textarea>
+            <div class="chip-group" data-objetivos-group>
+              ${OBJETIVOS_OPCIONES.map(o => {
+                const marcado = (loc.objetivos||'').split(',').map(s=>s.trim()).includes(o);
+                return `<label class="chip-checkbox ${marcado?'checked':''}">
+                  <input type="checkbox" value="${o}" ${marcado?'checked':''}> ${o}
+                </label>`;
+              }).join('')}
+            </div>
+            <input type="hidden" data-field="objetivos" value="${escapeHtml(loc.objetivos||'')}">
           </div>
           <div class="field-group">
             <label>Notas</label>
@@ -688,6 +724,8 @@ function buildFichaHTML(loc){
   `;
 }
 
+const OBJETIVOS_OPCIONES = ["Branding","BBDD","Seguidores","Experiencias","Sampling","Merchandising","Awareness"];
+
 const EDITABLE_FIELDS = ["nombre","ruido","soportePrincipal","auspiciador","fechaInicio","fechaTermino","ofrecidoAuspiciador","objetivos","notas","superficieDisponible"];
 
 function wireFichaEvents(popup, loc, marker){
@@ -695,6 +733,18 @@ function wireFichaEvents(popup, loc, marker){
   if (!el) return;
   const btn = el.querySelector('.save-btn');
   const msg = el.querySelector('.save-msg');
+
+  // El título y el auspiciador son <textarea> que se auto-ajustan en altura,
+  // así el texto siempre se ve completo (pasa a una segunda línea si hace
+  // falta) en vez de perderse hacia la derecha.
+  function autoAjustarAltura(ta){
+    ta.style.height = 'auto';
+    ta.style.height = ta.scrollHeight + 'px';
+  }
+  el.querySelectorAll('.ficha-title-input').forEach(ta => {
+    autoAjustarAltura(ta);
+    ta.addEventListener('input', () => autoAjustarAltura(ta));
+  });
 
   // Solo el campo Auspiciador se fuerza a mayúscula. El título (nombre) queda
   // libre: se respeta tal cual se escribe, mayúscula solo donde el usuario
@@ -706,6 +756,20 @@ function wireFichaEvents(popup, loc, marker){
       inp.setSelectionRange(pos, pos);
     });
   });
+
+  // Objetivos: chips de selección múltiple que mantienen sincronizado el
+  // campo oculto que realmente se guarda (lista separada por comas).
+  const objetivosGroup = el.querySelector('[data-objetivos-group]');
+  if (objetivosGroup){
+    const hiddenObjetivos = el.querySelector('[data-field="objetivos"]');
+    objetivosGroup.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+      cb.addEventListener('change', () => {
+        cb.closest('.chip-checkbox').classList.toggle('checked', cb.checked);
+        const seleccionados = Array.from(objetivosGroup.querySelectorAll('input[type="checkbox"]:checked')).map(c => c.value);
+        hiddenObjetivos.value = seleccionados.join(', ');
+      });
+    });
+  }
 
   const photoDrop = el.querySelector('.photo-drop');
   if (photoDrop){
@@ -915,12 +979,11 @@ async function openCreateForm(latlng){
 const FILTER_FIELDS = [
   { key:'categoria', label:'Categoría', type:'select', options:() => [...new Set(locations.map(l=>l.categoria).filter(Boolean))] },
   { key:'ruido', label:'Ruido', type:'select', options:() => ['1','2','3','4','5'] },
-  { key:'soportePrincipal', label:'Soporte', type:'select', options:() => ['Stand','Arco'] },
-  { key:'auspiciador', label:'Auspicio', type:'presence' },
-  { key:'ofrecidoAuspiciador', label:'Ofrecido a', type:'text' },
-  { key:'objetivos', label:'Objetivos', type:'text' },
-  { key:'fechas', label:'Fechas', type:'text', matchKeys:['fechaInicio','fechaTermino'] },
-  { key:'notas', label:'Notas', type:'text' }
+  { key:'soportePrincipal', label:'Soporte ppal', type:'select', options:() => ['Stand','Arco'] },
+  { key:'auspiciador', label:'Auspiciador', type:'presence' },
+  { key:'superficieDisponible', label:'Superficie disp.', type:'text' },
+  { key:'ofrecidoAuspiciador', label:'Auspiciador posible', type:'text' },
+  { key:'objetivos', label:'Objetivos', type:'select', multi:true, options:() => OBJETIVOS_OPCIONES }
 ];
 let activeFilters = {};
 let openPopoverKey = null;
@@ -1025,7 +1088,13 @@ function matchesFilters(loc){
   return FILTER_FIELDS.every(f => {
     const val = activeFilters[f.key];
     if (!val) return true;
-    if (f.type === 'select') return String(loc[f.key]) === val;
+    if (f.type === 'select'){
+      if (f.multi){
+        const values = String(loc[f.key]||'').split(',').map(s=>s.trim());
+        return values.includes(val);
+      }
+      return String(loc[f.key]) === val;
+    }
     if (f.type === 'presence'){
       const has = !!(loc[f.key] && String(loc[f.key]).trim());
       return val === 'Con' ? has : !has;
