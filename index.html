@@ -505,7 +505,7 @@ function buildFotoIcon(){
 // pantalla libre para la foto ampliada y el panel de Conceptos.
 function centrarPinEnPantallaFoto(marker){
   const size = map.getSize();
-  const targetPoint = L.point(size.x * 0.03, size.y * 0.50);
+  const targetPoint = L.point(size.x * 0.25, size.y * 0.50);
   const currentPoint = map.latLngToContainerPoint(marker.getLatLng());
   const delta = currentPoint.subtract(targetPoint);
   map.panBy(delta, { animate: true });
@@ -522,7 +522,8 @@ function renderFotoMarkers(){
     marker.on('click', () => centrarPinEnPantallaFoto(marker));
     marker.on('popupopen', (e) => {
       limitarAlturaFicha(e.popup);
-      const container = e.popup.getElement()?.querySelector('.foto-popup-content');
+      const popupEl = e.popup.getElement();
+      const container = popupEl?.querySelector('.foto-popup-content');
       if (!container) return;
       resolverUrlFoto(fp.foto).then(dataUrl => {
         if (!dataUrl){
@@ -543,6 +544,15 @@ function renderFotoMarkers(){
           </div>
         `;
         wireFotoPopupEvents(container, fp);
+        // El tamaño real recién se conoce cuando el layout se asienta (y
+        // sobre todo cuando la imagen termina de cargar, que es lo que más
+        // cambia la altura) — ahí es cuando corregimos si quedó tapada.
+        asegurarFichaVisible(popupEl);
+        const imgEl = container.querySelector('.foto-popup-img');
+        if (imgEl){
+          if (imgEl.complete) asegurarFichaVisible(popupEl);
+          else imgEl.addEventListener('load', () => asegurarFichaVisible(popupEl));
+        }
       });
     });
     marker.addTo(fotoMarkersLayer);
