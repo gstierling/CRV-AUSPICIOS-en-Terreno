@@ -695,7 +695,7 @@ async function loadLocations(){
       locations = demoData();
     } else {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 15000);
+      const timeoutId = setTimeout(() => controller.abort(), 25000);
       let res;
       try{
         res = await fetch(CONFIG.APPS_SCRIPT_URL + "?action=list", { signal: controller.signal });
@@ -715,7 +715,7 @@ async function loadLocations(){
   }catch(err){
     console.error(err);
     const msg = (err.name === 'AbortError')
-      ? "⚠️ El servidor tardó demasiado en responder (revisa si hay fotos muy pesadas)."
+      ? "⚠️ El servidor (Google Apps Script) tardó demasiado en responder — a veces pasa por su propia latencia, no por el tamaño de los datos."
       : "⚠️ Error al cargar datos. Reintentando en 30s…";
     setStatus(msg);
   }
@@ -1196,16 +1196,32 @@ function wireFichaEvents(popup, loc, marker){
 // (no se puede usar directo como src de una <img> — Apps Script no permite
 // devolver un archivo binario desde un Web App). Esta función le pide al
 // backend los datos reales (base64) y arma un data URI utilizable.
+// Con caché en memoria (para no repetir el pedido si ya se cargó antes en
+// esta sesión) y un tope de tiempo (para que nunca quede pegada esperando).
+const cacheFotosResueltas = new Map();
+
 async function resolverUrlFoto(url){
   if (!url) return '';
+  if (cacheFotosResueltas.has(url)) return cacheFotosResueltas.get(url);
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 20000);
   try{
-    const res = await fetch(url);
+    const res = await fetch(url, { signal: controller.signal });
     const data = await res.json();
     if (data.error) throw new Error(data.error);
-    return data.dataUrl || '';
+    const dataUrl = data.dataUrl || '';
+    if (dataUrl) cacheFotosResueltas.set(url, dataUrl);
+    return dataUrl;
   }catch(err){
-    console.error('Error al resolver foto:', err);
+    if (err.name === 'AbortError'){
+      console.error('La foto tardó demasiado en cargar (Apps Script):', url);
+    } else {
+      console.error('Error al resolver foto:', err);
+    }
     return '';
+  }finally{
+    clearTimeout(timeoutId);
   }
 }
 
@@ -1248,20 +1264,22 @@ function comprimirImagen(blob, maxDim, calidad){
 }
 
 // Tope de peso real que este dashboard acepta para CUALQUIER foto, suba por
-// el método que suba (archivo o Ctrl+V): 500 KB. Si tras comprimir sigue
+// el método que suba (archivo o Ctrl+V): 280 KB. Se bajó desde 500 KB porque
+// Apps Script es lento transfiriendo/codificando datos — fotos más livianas
+// se suben y se ven notablemente más rápido. Si tras comprimir sigue
 // pesando más, se reintenta automáticamente con menor tamaño/calidad hasta
 // lograrlo (o hasta llegar al mínimo que seguimos ofreciendo).
-const MAX_FOTO_BYTES = 500 * 1024;                    // 500 KB reales
+const MAX_FOTO_BYTES = 280 * 1024;                    // 280 KB reales
 const MAX_FOTO_BASE64_CHARS = Math.floor(MAX_FOTO_BYTES * 4 / 3 * 0.92); // margen por el overhead del base64
 
 async function comprimirImagenConLimite(blob){
   const intentos = [
-    [1100, 0.7],
-    [900, 0.55],
-    [700, 0.45],
-    [550, 0.35],
-    [420, 0.3],
-    [320, 0.25]
+    [900, 0.6],
+    [700, 0.5],
+    [550, 0.4],
+    [420, 0.32],
+    [320, 0.28],
+    [240, 0.25]
   ];
   let dataUrl = null;
   for (const [maxDim, calidad] of intentos){
