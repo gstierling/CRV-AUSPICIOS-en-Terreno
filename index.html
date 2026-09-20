@@ -345,6 +345,11 @@
   .photo-drop:focus{border-color:var(--orange);}
   .photo-preview{max-width:100%;border-radius:6px;display:block;margin:0 auto;cursor:zoom-in;}
   .photo-hint{font-size:.7rem;color:var(--text-dim);}
+  .photo-retry-btn{
+    background:var(--orange);color:#0d1117;border:none;border-radius:5px;
+    padding:3px 9px;font-size:.68rem;font-weight:800;cursor:pointer;
+    font-family:inherit;margin-left:4px;
+  }
   .photo-change-btn{
     position:absolute;top:6px;right:6px;display:none;
     background:rgba(13,17,23,.82);color:#fff;border:1px solid rgba(255,255,255,.3);
@@ -525,37 +530,46 @@ function renderFotoMarkers(){
       const popupEl = e.popup.getElement();
       const container = popupEl?.querySelector('.foto-popup-content');
       if (!container) return;
-      resolverUrlFoto(fp.foto).then(dataUrl => {
-        if (!dataUrl){
-          container.innerHTML = '⚠️ La foto no cargó';
-          return;
-        }
-        container.innerHTML = `
-          <div class="foto-popup-wrap">
-            <img class="foto-popup-img" src="${dataUrl}" alt="Foto">
-            <div class="foto-popup-side">
-              <label class="foto-popup-label">Conceptos</label>
-              ${buildMultiSelectDropdown('conceptos', CONCEPTOS_OPCIONES, fp.conceptos)}
-              <button type="button" class="foto-popup-save">💾 Guardar</button>
-              <div class="foto-popup-msg"></div>
-              <div class="foto-popup-lista-titulo">Elegidos:</div>
-              <ul class="foto-popup-lista"></ul>
-            </div>
-          </div>
-        `;
-        wireFotoPopupEvents(container, fp);
-        // El tamaño real recién se conoce cuando el layout se asienta (y
-        // sobre todo cuando la imagen termina de cargar, que es lo que más
-        // cambia la altura) — ahí es cuando corregimos si quedó tapada.
-        asegurarFichaVisible(popupEl);
-        const imgEl = container.querySelector('.foto-popup-img');
-        if (imgEl){
-          if (imgEl.complete) asegurarFichaVisible(popupEl);
-          else imgEl.addEventListener('load', () => asegurarFichaVisible(popupEl));
-        }
-      });
+      cargarFotoEnPopup(container, fp, popupEl);
     });
     marker.addTo(fotoMarkersLayer);
+  });
+}
+
+function cargarFotoEnPopup(container, fp, popupEl){
+  resolverUrlFoto(fp.foto).then(dataUrl => {
+    if (!dataUrl){
+      container.innerHTML = `⚠️ No se pudo cargar la foto (el servidor está lento) — la foto sigue guardada.
+        <button type="button" class="photo-retry-btn">Reintentar</button>`;
+      container.querySelector('.photo-retry-btn').addEventListener('click', () => {
+        container.innerHTML = 'Cargando…';
+        cargarFotoEnPopup(container, fp, popupEl);
+      });
+      return;
+    }
+    container.innerHTML = `
+      <div class="foto-popup-wrap">
+        <img class="foto-popup-img" src="${dataUrl}" alt="Foto">
+        <div class="foto-popup-side">
+          <label class="foto-popup-label">Conceptos</label>
+          ${buildMultiSelectDropdown('conceptos', CONCEPTOS_OPCIONES, fp.conceptos)}
+          <button type="button" class="foto-popup-save">💾 Guardar</button>
+          <div class="foto-popup-msg"></div>
+          <div class="foto-popup-lista-titulo">Elegidos:</div>
+          <ul class="foto-popup-lista"></ul>
+        </div>
+      </div>
+    `;
+    wireFotoPopupEvents(container, fp);
+    // El tamaño real recién se conoce cuando el layout se asienta (y sobre
+    // todo cuando la imagen termina de cargar, que es lo que más cambia la
+    // altura) — ahí es cuando corregimos si quedó tapada.
+    asegurarFichaVisible(popupEl);
+    const imgEl = container.querySelector('.foto-popup-img');
+    if (imgEl){
+      if (imgEl.complete) asegurarFichaVisible(popupEl);
+      else imgEl.addEventListener('load', () => asegurarFichaVisible(popupEl));
+    }
   });
 }
 
@@ -1126,11 +1140,23 @@ function wireFichaEvents(popup, loc, marker){
       hint.style.display = 'none';
       changeBtn.style.display = 'block';
     }
-    function ocultarFoto(mensaje){
+    function ocultarFoto(mensaje, conReintentar){
       img.style.display = 'none';
       changeBtn.style.display = 'none';
       hint.style.display = 'block';
-      hint.textContent = mensaje;
+      if (conReintentar){
+        hint.innerHTML = `${mensaje} <button type="button" class="photo-retry-btn">Reintentar</button>`;
+        hint.querySelector('.photo-retry-btn').addEventListener('click', (e) => {
+          e.stopPropagation();
+          hint.textContent = 'Cargando foto…';
+          resolverUrlFoto(loc.foto).then(dataUrl => {
+            if (dataUrl) mostrarFoto(dataUrl);
+            else ocultarFoto('⚠️ El servidor sigue lento — la foto está guardada, solo no cargó aún.', true);
+          });
+        });
+      } else {
+        hint.textContent = mensaje;
+      }
     }
 
     // Si ya hay una foto guardada, pedirle al backend los datos reales
@@ -1138,7 +1164,7 @@ function wireFichaEvents(popup, loc, marker){
     if (loc.foto){
       resolverUrlFoto(loc.foto).then(dataUrl => {
         if (dataUrl) mostrarFoto(dataUrl);
-        else ocultarFoto('⚠️ La foto no cargó — vuelve a pegarla');
+        else ocultarFoto('⚠️ No se pudo cargar la foto (el servidor está lento) — la foto sigue guardada.', true);
       });
     }
 
@@ -1225,9 +1251,10 @@ function wireFichaEvents(popup, loc, marker){
 // esta sesión) y un tope de tiempo (para que nunca quede pegada esperando).
 const cacheFotosResueltas = new Map();
 
-async function resolverUrlFoto(url){
+async function resolverUrlFoto(url, intentos){
   if (!url) return '';
   if (cacheFotosResueltas.has(url)) return cacheFotosResueltas.get(url);
+  if (intentos === undefined) intentos = 3; // 1 intento inicial + 2 reintentos, por el arranque en frío de Apps Script
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 20000);
@@ -1243,6 +1270,9 @@ async function resolverUrlFoto(url){
       console.error('La foto tardó demasiado en cargar (Apps Script):', url);
     } else {
       console.error('Error al resolver foto:', err);
+    }
+    if (intentos > 1){
+      return resolverUrlFoto(url, intentos - 1); // reintenta: puede que el servidor ya haya "despertado"
     }
     return '';
   }finally{
