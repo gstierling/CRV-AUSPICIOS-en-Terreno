@@ -828,13 +828,28 @@ function limitarAlturaFicha(popup){
 // Si el contenido de la ficha crece (por ejemplo al desplegar Objetivos o
 // Servicios) y su borde superior queda tapado por el header, desplaza el
 // mapa lo justo para dejarla completamente visible.
+// Si el contenido de una ficha o ventana emergente queda tapado por el
+// header (arriba) o por el panel de filtros (derecha), desplaza el mapa lo
+// justo para dejarlo completamente visible en ambos sentidos a la vez.
 function asegurarFichaVisible(el){
   const headerH = document.querySelector('header').offsetHeight;
+  const panelEl = document.getElementById('filterPanel');
   const margen = 12;
   const rect = el.getBoundingClientRect();
+  let offsetX = 0;
+  let offsetY = 0;
+
   if (rect.top < headerH + margen){
-    const faltante = (headerH + margen) - rect.top;
-    map.panBy([0, -faltante], { animate: true });
+    offsetY = -((headerH + margen) - rect.top);
+  }
+  if (panelEl){
+    const panelLeft = panelEl.getBoundingClientRect().left;
+    if (rect.right > panelLeft - margen){
+      offsetX = rect.right - (panelLeft - margen);
+    }
+  }
+  if (offsetX !== 0 || offsetY !== 0){
+    map.panBy([offsetX, offsetY], { animate: true });
   }
 }
 
