@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>CicloRecreoVía AUSPICIOS UBICACIONES</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiI+CiAgPHBhdGggZD0iTTE2IDJjLTYuNiAwLTEyIDUuNC0xMiAxMiAwIDkgMTIgMTYgMTIgMTZzMTItNyAxMi0xNmMwLTYuNi01LjQtMTItMTItMTJ6IiBmaWxsPSIjZGMyNjI2IiBzdHJva2U9IiNmZmZmZmYiIHN0cm9rZS13aWR0aD0iMS41Ii8+CiAgPGNpcmNsZSBjeD0iMTYiIGN5PSIxNCIgcj0iNSIgZmlsbD0iI2ZmZmZmZiIvPgo8L3N2Zz4K">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exif-js/2.3.0/exif.js"></script>
 <style>
   :root{
@@ -86,8 +87,16 @@
      Sin cuña/indicador — se retiró por pedido del usuario. */
   .leaflet-popup-tip-container{ display:none !important; }
   .leaflet-popup-content{margin:0;width:560px !important;}
+  .leaflet-popup.foto-popup .leaflet-popup-content{width:auto !important;max-width:min(1300px, 88vw) !important;}
 
-  .ficha{padding:16px;}
+  .ficha{padding:16px;position:relative;}
+  .ficha-close-btn{
+    position:absolute;top:8px;right:8px;width:26px;height:26px;
+    border-radius:50%;border:none;background:var(--panel-2);color:var(--text-dim);
+    font-size:.8rem;cursor:pointer;line-height:1;z-index:5;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .ficha-close-btn:hover{background:#fee2e2;color:#dc2626;}
   .ficha h3{
     margin:0 0 4px 0;font-size:1rem;font-weight:800;color:var(--orange);
   }
@@ -105,9 +114,11 @@
     resize:none;overflow:hidden;line-height:1.3;
   }
   .ficha-title-input.ficha-auspiciador-input{
-    font-size:1.19rem;color:#334155;font-weight:800;margin-bottom:8px;
+    font-size:1.43rem;color:#7c2d12;font-weight:800;margin-bottom:8px;
+    background:#fef08a;padding:6px 10px;letter-spacing:.01em;
   }
   .ficha-title-input:focus{outline:none;background:var(--panel-2);}
+  .ficha-title-input.ficha-auspiciador-input:focus{background:#fde68a;}
   .ficha-title-input::placeholder{color:var(--text-dim);font-weight:600;}
   .ficha-columns{display:grid;grid-template-columns:1fr 1fr;gap:0 18px;}
   .field-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
@@ -165,20 +176,20 @@
   .chip-checkbox input{width:auto !important;margin:0;accent-color:#00987a;}
   .chip-checkbox.checked{background:#00987a;border-color:#00987a;color:#fff;}
 
-  .objetivos-dropdown{position:relative;}
-  .objetivos-summary{
+  .multiselect-dropdown{position:relative;}
+  .multiselect-summary{
     width:100%;background:var(--panel-2);border:1px solid var(--border);
     color:var(--text);border-radius:6px;padding:6px 8px;font-family:inherit;
     font-size:1rem;cursor:pointer;
     display:flex;align-items:center;justify-content:space-between;gap:6px;
   }
-  .objetivos-summary::after{content:"▾";color:var(--orange);font-size:.8rem;flex-shrink:0;}
-  .objetivos-summary.placeholder{color:var(--text-dim);}
-  .objetivos-panel{
+  .multiselect-summary::after{content:"▾";color:var(--orange);font-size:.8rem;flex-shrink:0;}
+  .multiselect-summary.placeholder{color:var(--text-dim);}
+  .multiselect-panel{
     display:none;flex-wrap:wrap;gap:6px;margin-top:6px;
     padding:8px;background:var(--panel-2);border:1px solid var(--border);border-radius:8px;
   }
-  .objetivos-dropdown.open .objetivos-panel{display:flex;}
+  .multiselect-dropdown.open .multiselect-panel{display:flex;}
 
   /* Pin resaltado mientras su ficha está abierta: se agranda un poco y
      muestra una estrella blanca en el centro (sin halo de color) */
@@ -237,8 +248,23 @@
     background:#dc2626;border:4px solid #fde047;
     box-shadow:0 1px 4px rgba(0,0,0,.6);
   }
-  .foto-popup-content{padding:6px;}
-  .foto-popup-content img{max-width:260px;max-height:260px;border-radius:8px;display:block;object-fit:cover;}
+  .foto-popup-content{padding:8px;}
+  .foto-popup-wrap{display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap;}
+  .foto-popup-img{
+    max-width:min(1040px, 82vw);max-height:min(1040px, 82vh);
+    border-radius:8px;display:block;object-fit:contain;
+  }
+  .foto-popup-side{width:210px;flex-shrink:0;display:flex;flex-direction:column;gap:8px;}
+  .foto-popup-label{font-size:.8rem;font-weight:800;color:#334155;}
+  .foto-popup-save{
+    background:#00987a;color:#fff;border:none;border-radius:6px;
+    padding:8px 10px;font-weight:700;font-size:.82rem;cursor:pointer;font-family:inherit;
+  }
+  .foto-popup-save:hover{filter:brightness(1.08);}
+  .foto-popup-msg{font-size:.72rem;color:#00987a;min-height:14px;}
+  .foto-popup-lista-titulo{font-size:.76rem;font-weight:800;color:#334155;margin-top:2px;}
+  .foto-popup-lista{margin:4px 0 0;padding-left:18px;font-size:.8rem;color:#1e293b;}
+  .foto-popup-lista li{margin-bottom:2px;}
 
   /* Widgets para agregar una foto geolocalizada: botón de carpeta + zona de pegado */
   .icon-svg{width:16px;height:16px;flex-shrink:0;}
@@ -271,7 +297,7 @@
   /* Panel de filtros: barra lateral fija con todas las opciones a la vista,
      sin menús emergentes */
   #filterPanel{
-    position:fixed;top:90px;right:16px;bottom:16px;width:240px;
+    position:fixed;top:90px;right:16px;bottom:16px;width:288px;
     background:rgba(13,17,23,.88);border:1px solid rgba(255,255,255,.12);
     border-radius:14px;padding:14px;overflow-y:auto;z-index:900;
     display:flex;flex-direction:column;gap:16px;
@@ -314,10 +340,29 @@
   .photo-drop{
     border:2px dashed var(--border);border-radius:8px;padding:10px;
     text-align:center;cursor:pointer;outline:none;
+    position:relative;
   }
   .photo-drop:focus{border-color:var(--orange);}
-  .photo-preview{max-width:100%;border-radius:6px;display:block;margin:0 auto;}
+  .photo-preview{max-width:100%;border-radius:6px;display:block;margin:0 auto;cursor:zoom-in;}
   .photo-hint{font-size:.7rem;color:var(--text-dim);}
+  .photo-change-btn{
+    position:absolute;top:6px;right:6px;display:none;
+    background:rgba(13,17,23,.82);color:#fff;border:1px solid rgba(255,255,255,.3);
+    border-radius:6px;padding:4px 9px;font-size:.68rem;font-weight:700;
+    cursor:pointer;font-family:inherit;
+  }
+  .photo-change-btn:hover{background:rgba(13,17,23,.95);}
+
+  /* Visor emergente de foto ampliada */
+  .foto-lightbox-overlay{
+    position:fixed;inset:0;background:rgba(0,0,0,.86);
+    display:flex;align-items:center;justify-content:center;
+    z-index:5000;cursor:zoom-out;
+  }
+  .foto-lightbox-img{
+    max-width:92vw;max-height:92vh;border-radius:10px;
+    box-shadow:0 20px 60px rgba(0,0,0,.6);cursor:default;
+  }
 </style>
 </head>
 <body>
@@ -412,6 +457,13 @@ function initMap(){
     }
     if (addMode) {
       openCreateForm(e.latlng);
+      return;
+    }
+    // Clic en el mapa, fuera de cualquier ficha: la cerramos nosotros (con
+    // confirmación si tiene cambios sin guardar), en vez del cierre
+    // automático de Leaflet.
+    if (selectedMarker){
+      intentarCerrarFicha(selectedMarker);
     }
   });
 
@@ -449,20 +501,96 @@ function buildFotoIcon(){
 
 function renderFotoMarkers(){
   fotoMarkersLayer.clearLayers();
+  if (capaVisible === 'auspicios') return; // solo se muestran los pines
   fotoPoints.forEach(fp => {
     const marker = L.marker([fp.lat, fp.lng], { icon: buildFotoIcon() });
-    marker.bindPopup(`<div class="foto-popup-content">Cargando…</div>`, { maxWidth: 300 });
+    marker.bindPopup(`<div class="foto-popup-content">Cargando…</div>`, { maxWidth: 300, className: 'foto-popup' });
     marker.on('popupopen', (e) => {
       const container = e.popup.getElement()?.querySelector('.foto-popup-content');
       if (!container) return;
       resolverUrlFoto(fp.foto).then(dataUrl => {
-        container.innerHTML = dataUrl
-          ? `<img src="${dataUrl}" alt="Foto">`
-          : '⚠️ La foto no cargó';
+        if (!dataUrl){
+          container.innerHTML = '⚠️ La foto no cargó';
+          return;
+        }
+        container.innerHTML = `
+          <div class="foto-popup-wrap">
+            <img class="foto-popup-img" src="${dataUrl}" alt="Foto">
+            <div class="foto-popup-side">
+              <label class="foto-popup-label">Conceptos</label>
+              ${buildMultiSelectDropdown('conceptos', CONCEPTOS_OPCIONES, fp.conceptos)}
+              <button type="button" class="foto-popup-save">💾 Guardar</button>
+              <div class="foto-popup-msg"></div>
+              <div class="foto-popup-lista-titulo">Elegidos:</div>
+              <ul class="foto-popup-lista"></ul>
+            </div>
+          </div>
+        `;
+        wireFotoPopupEvents(container, fp);
       });
     });
     marker.addTo(fotoMarkersLayer);
   });
+}
+
+function wireFotoPopupEvents(container, fp){
+  const dropdown = container.querySelector('.multiselect-dropdown');
+  const summary = dropdown.querySelector('.multiselect-summary');
+  const hiddenInput = container.querySelector('[data-field="conceptos"]');
+  const lista = container.querySelector('.foto-popup-lista');
+  const msg = container.querySelector('.foto-popup-msg');
+  const saveBtn = container.querySelector('.foto-popup-save');
+
+  function actualizarLista(texto){
+    const items = texto.split(',').map(s=>s.trim()).filter(Boolean);
+    lista.innerHTML = items.length
+      ? items.map(i => `<li>${escapeHtml(i)}</li>`).join('')
+      : '<li style="color:var(--text-dim);list-style:none;margin-left:-18px;">(ninguno aún)</li>';
+  }
+  actualizarLista(fp.conceptos || '');
+
+  summary.addEventListener('click', () => dropdown.classList.toggle('open'));
+  dropdown.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+    cb.addEventListener('change', () => {
+      cb.closest('.chip-checkbox').classList.toggle('checked', cb.checked);
+      const seleccionadas = Array.from(dropdown.querySelectorAll('input[type="checkbox"]:checked')).map(c => c.value);
+      const texto = seleccionadas.join(', ');
+      hiddenInput.value = texto;
+      summary.textContent = texto || 'Elegir…';
+      summary.classList.toggle('placeholder', !texto);
+      actualizarLista(texto);
+    });
+  });
+
+  saveBtn.addEventListener('click', async () => {
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'Guardando…';
+    try{
+      await guardarConceptosFoto(fp, hiddenInput.value);
+      msg.textContent = 'Guardado ✓';
+      msg.style.color = '#00987a';
+      showToast('Conceptos guardados');
+    }catch(err){
+      console.error(err);
+      msg.textContent = 'Error: ' + (err.message || 'no se pudo guardar');
+      msg.style.color = '#dc2626';
+    }finally{
+      saveBtn.disabled = false;
+      saveBtn.textContent = '💾 Guardar';
+    }
+  });
+}
+
+async function guardarConceptosFoto(fp, conceptos){
+  if (!isConfigured()){ fp.conceptos = conceptos; return; }
+  const res = await fetch(CONFIG.APPS_SCRIPT_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain' },
+    body: JSON.stringify({ action: 'updateFoto', data: { id: fp.id, conceptos } })
+  });
+  const data = await res.json().catch(() => ({}));
+  if (data.error) throw new Error(data.error);
+  fp.conceptos = conceptos;
 }
 
 async function loadFotoPoints(){
@@ -590,7 +718,7 @@ function demoData(){
       lat: -33.4372, lng: -70.6206,
       notas: "Este es un dato de ejemplo — conecta tu Google Sheet para ver datos reales.",
       ruido: "3", soportePrincipal: "Stand", auspiciador: "Marca Ejemplo",
-      fechaInicio: "", fechaTermino: "", ofrecidoAuspiciador: "", objetivos: "", foto: "",
+      fechaInicio: "", fechaTermino: "", ofrecidoAuspiciador: "", objetivos: "", servicios: "", foto: "",
       superficieDisponible: "20 m²"
     }
   ];
@@ -605,14 +733,22 @@ function renderMarkers(){
     const marker = L.marker([loc.lat, loc.lng], { icon: buildIcon(loc) });
     marker.bindPopup(() => buildFichaHTML(loc), {
       minWidth: 280, autoPanPadding: [40,40],
-      autoPan: false   // el posicionamiento lo maneja nuestro propio centrado
+      autoPan: false,     // el posicionamiento lo maneja nuestro propio centrado
+      closeOnClick: false, // el cierre lo controlamos nosotros (ver intentarCerrarFicha)
+      closeButton: false   // usamos nuestro propio botón de cerrar, dentro de la ficha
     });
-    marker.on('click', () => centrarPinEnPantalla(marker));
+    marker._fichaDirty = () => false;
+    marker._fichaGuardar = () => Promise.resolve();
+    marker.on('click', () => {
+      if (selectedMarker && selectedMarker !== marker){
+        intentarCerrarFicha(selectedMarker);
+      }
+      centrarPinEnPantalla(marker);
+    });
     marker.on('popupopen', (e) => {
       const elm = marker.getElement();
       if (elm) elm.classList.add('marker-selected');
       selectedMarker = marker;
-      e.popup.options.closeOnClick = true; // recién abierta: nada editado aún, se puede cerrar al hacer clic fuera
       limitarAlturaFicha(e.popup);
       wireFichaEvents(e.popup, loc, marker);
     });
@@ -624,6 +760,27 @@ function renderMarkers(){
     marker.addTo(markersLayer);
     loc.__marker = marker;
   });
+}
+
+// Cierra una ficha, pero si tiene cambios sin guardar primero pregunta si se
+// quieren guardar (en vez de perderlos en silencio). Se usa al hacer clic
+// fuera de la ficha, al cambiar de pin, o con el botón de cerrar propio.
+function intentarCerrarFicha(marker){
+  if (!marker.isPopupOpen() || !marker._fichaDirty()) {
+    marker.closePopup();
+    return;
+  }
+  const quiereGuardar = confirm(
+    'Tienes cambios sin guardar en esta ficha.\n\n' +
+    'Aceptar = guardar y cerrar\nCancelar = cerrar sin guardar'
+  );
+  if (quiereGuardar){
+    marker._fichaGuardar().then(() => marker.closePopup()).catch(err => {
+      alert('No se pudo guardar: ' + (err.message || 'error desconocido') + '\nLa ficha se mantiene abierta para que puedas reintentar.');
+    });
+  } else {
+    marker.closePopup();
+  }
 }
 
 // La ficha nunca puede quedar tapada por el header (ni taparlo ella): se le
@@ -650,6 +807,34 @@ function centrarPinEnPantalla(marker){
   const delta = currentPoint.subtract(targetPoint);
   map.panBy(delta, { animate: true });
 }
+
+/* =========================================================
+   NAVEGACIÓN CON TAB ENTRE PINES
+   ========================================================= */
+let pinCycleIndex = -1;
+
+function moverAlSiguientePin(direccion){
+  const visibles = locations.filter(matchesFilters);
+  if (!visibles.length) return;
+  if (selectedMarker && selectedMarker.isPopupOpen()){
+    intentarCerrarFicha(selectedMarker);
+  }
+  pinCycleIndex = (pinCycleIndex + direccion + visibles.length) % visibles.length;
+  const loc = visibles[pinCycleIndex];
+  if (loc.__marker){
+    centrarPinEnPantalla(loc.__marker);
+    loc.__marker.openPopup();
+  }
+}
+
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Tab') return;
+  const activo = document.activeElement;
+  const enFormulario = activo && ['INPUT','TEXTAREA','SELECT'].includes(activo.tagName);
+  if (enFormulario) return; // Tab sigue funcionando normal para moverse entre campos de un formulario
+  e.preventDefault();
+  moverAlSiguientePin(e.shiftKey ? -1 : 1);
+});
 
 // Ancho visual del pin y separación pedida: 5 veces ese ancho entre el
 // borde del pin y la ficha. El ancho aproximado de la ficha (560px + borde)
@@ -678,10 +863,33 @@ function buildIcon(loc){
 /* =========================================================
    FICHA (popup): datos fijos + campos editables
    ========================================================= */
+// Genera un desplegable de selección múltiple (no excluyente): muestra lo
+// ya elegido separado por comas, y al hacer clic despliega el resto de las
+// opciones para seguir marcando/desmarcando. Se usa para Objetivos y Servicios.
+function buildMultiSelectDropdown(campo, opciones, valorActual){
+  const actual = valorActual || '';
+  const seleccionadas = actual.split(',').map(s=>s.trim()).filter(Boolean);
+  return `
+    <div class="multiselect-dropdown" data-campo="${campo}">
+      <div class="multiselect-summary ${actual.trim()?'':'placeholder'}" tabindex="0">${escapeHtml(actual) || 'Elegir…'}</div>
+      <div class="multiselect-panel">
+        ${opciones.map(o => {
+          const marcado = seleccionadas.includes(o);
+          return `<label class="chip-checkbox ${marcado?'checked':''}">
+            <input type="checkbox" value="${escapeHtml(o)}" ${marcado?'checked':''}> ${escapeHtml(o)}
+          </label>`;
+        }).join('')}
+      </div>
+    </div>
+    <input type="hidden" data-field="${campo}" value="${escapeHtml(actual)}">
+  `;
+}
+
 function buildFichaHTML(loc){
   const locked = !unlockedGlobal;
   return `
     <div class="ficha" data-id="${loc.id}">
+      <button type="button" class="ficha-close-btn" title="Cerrar">✕</button>
       <textarea class="ficha-title-input" data-field="nombre" rows="1" placeholder="NOMBRE DEL PUNTO">${escapeHtml(loc.nombre||'')}</textarea>
       <textarea class="ficha-title-input ficha-auspiciador-input" data-field="auspiciador" rows="1" placeholder="AUSPICIADOR">${escapeHtml(loc.auspiciador||'')}</textarea>
       <div class="addr">${escapeHtml(loc.direccion || '')}</div>
@@ -725,18 +933,11 @@ function buildFichaHTML(loc){
         <div class="col-right">
           <div class="field-group">
             <label>Objetivos</label>
-            <div class="objetivos-dropdown">
-              <div class="objetivos-summary ${(loc.objetivos||'').trim()?'':'placeholder'}" tabindex="0">${escapeHtml(loc.objetivos) || 'Elegir objetivos…'}</div>
-              <div class="objetivos-panel">
-                ${OBJETIVOS_OPCIONES.map(o => {
-                  const marcado = (loc.objetivos||'').split(',').map(s=>s.trim()).includes(o);
-                  return `<label class="chip-checkbox ${marcado?'checked':''}">
-                    <input type="checkbox" value="${o}" ${marcado?'checked':''}> ${o}
-                  </label>`;
-                }).join('')}
-              </div>
-            </div>
-            <input type="hidden" data-field="objetivos" value="${escapeHtml(loc.objetivos||'')}">
+            ${buildMultiSelectDropdown('objetivos', OBJETIVOS_OPCIONES, loc.objetivos)}
+          </div>
+          <div class="field-group">
+            <label>Servicios</label>
+            ${buildMultiSelectDropdown('servicios', SERVICIOS_OPCIONES, loc.servicios)}
           </div>
           <div class="field-group">
             <label>Notas</label>
@@ -746,6 +947,7 @@ function buildFichaHTML(loc){
             <label>Foto</label>
             <div class="photo-drop" tabindex="0">
               <img class="photo-preview" style="display:none">
+              <button type="button" class="photo-change-btn">Cambiar</button>
               <div class="photo-hint" style="display:block">${loc.foto ? 'Cargando foto…' : 'Copia una imagen y presiona Ctrl+V aquí'}</div>
             </div>
           </div>
@@ -759,8 +961,10 @@ function buildFichaHTML(loc){
 }
 
 const OBJETIVOS_OPCIONES = ["Branding","BBDD","Seguidores","Experiencias","Sampling","Merchandising","Awareness"];
+const SERVICIOS_OPCIONES = ["Hidratación","Fruta","Sampling","Merchandising","Bicicletas","Regalo","Mecánica bicis","Chequeo salud","Gimnasia entretenida"];
+const CONCEPTOS_OPCIONES = ["Usuarios","Vallas","Barreras","Arcos","Domos","Quitasoles","Panel","Banderas","Tótem hidratación","Promotoras"];
 
-const EDITABLE_FIELDS = ["nombre","ruido","soportePrincipal","auspiciador","fechaInicio","fechaTermino","ofrecidoAuspiciador","objetivos","notas","superficieDisponible"];
+const EDITABLE_FIELDS = ["nombre","ruido","soportePrincipal","auspiciador","fechaInicio","fechaTermino","ofrecidoAuspiciador","objetivos","servicios","notas","superficieDisponible"];
 
 function wireFichaEvents(popup, loc, marker){
   const el = popup.getElement();
@@ -768,13 +972,19 @@ function wireFichaEvents(popup, loc, marker){
   const btn = el.querySelector('.save-btn');
   const msg = el.querySelector('.save-msg');
 
-  // Mientras no se edite nada, la ficha se cierra normalmente al hacer clic
-  // afuera. En cuanto se toca cualquier campo, deja de cerrarse sola hasta
-  // que el usuario la cierre a propósito (botón X u otro pin).
+  // Rastreo de cambios sin guardar: mientras no se edite nada, la ficha se
+  // cierra normalmente. En cuanto se toca cualquier campo, hay que confirmar
+  // (guardar o descartar) antes de poder cerrarla — ver intentarCerrarFicha.
+  let dirty = false;
   el.querySelectorAll('input, textarea, select').forEach(campo => {
-    const marcarEdicionEnCurso = () => { popup.options.closeOnClick = false; };
+    const marcarEdicionEnCurso = () => { dirty = true; };
     campo.addEventListener('input', marcarEdicionEnCurso);
     campo.addEventListener('change', marcarEdicionEnCurso);
+  });
+  marker._fichaDirty = () => dirty;
+
+  el.querySelector('.ficha-close-btn').addEventListener('click', () => {
+    intentarCerrarFicha(marker);
   });
 
   // El título y el auspiciador son <textarea> que se auto-ajustan en altura,
@@ -800,63 +1010,82 @@ function wireFichaEvents(popup, loc, marker){
     });
   });
 
-  // Objetivos: menú desplegable de selección múltiple (no excluyente, como
-  // Ruido pero permitiendo varias). El resumen muestra lo ya elegido
-  // separado por comas; al hacer clic se despliegan las demás opciones.
-  const objetivosDropdown = el.querySelector('.objetivos-dropdown');
-  if (objetivosDropdown){
-    const summary = objetivosDropdown.querySelector('.objetivos-summary');
-    const hiddenObjetivos = el.querySelector('[data-field="objetivos"]');
+  // Objetivos y Servicios: desplegables de selección múltiple (no
+  // excluyentes). El resumen muestra lo ya elegido separado por comas; al
+  // hacer clic se despliegan las demás opciones para seguir marcando.
+  el.querySelectorAll('.multiselect-dropdown').forEach(dropdown => {
+    const summary = dropdown.querySelector('.multiselect-summary');
+    const hiddenInput = el.querySelector(`[data-field="${dropdown.dataset.campo}"]`);
     summary.addEventListener('click', () => {
-      objetivosDropdown.classList.toggle('open');
+      dropdown.classList.toggle('open');
     });
-    objetivosDropdown.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+    dropdown.querySelectorAll('input[type="checkbox"]').forEach(cb => {
       cb.addEventListener('change', () => {
         cb.closest('.chip-checkbox').classList.toggle('checked', cb.checked);
-        const seleccionados = Array.from(objetivosDropdown.querySelectorAll('input[type="checkbox"]:checked')).map(c => c.value);
-        const texto = seleccionados.join(', ');
-        hiddenObjetivos.value = texto;
-        summary.textContent = texto || 'Elegir objetivos…';
+        const seleccionadas = Array.from(dropdown.querySelectorAll('input[type="checkbox"]:checked')).map(c => c.value);
+        const texto = seleccionadas.join(', ');
+        hiddenInput.value = texto;
+        summary.textContent = texto || 'Elegir…';
         summary.classList.toggle('placeholder', !texto);
       });
     });
-  }
+  });
 
   const photoDrop = el.querySelector('.photo-drop');
   if (photoDrop){
+    const img = photoDrop.querySelector('.photo-preview');
+    const hint = photoDrop.querySelector('.photo-hint');
+    const changeBtn = photoDrop.querySelector('.photo-change-btn');
+
+    function mostrarFoto(src){
+      img.src = src;
+      img.style.display = 'block';
+      hint.style.display = 'none';
+      changeBtn.style.display = 'block';
+    }
+    function ocultarFoto(mensaje){
+      img.style.display = 'none';
+      changeBtn.style.display = 'none';
+      hint.style.display = 'block';
+      hint.textContent = mensaje;
+    }
+
     // Si ya hay una foto guardada, pedirle al backend los datos reales
     // (la URL guardada no sirve como src directo — hay que resolverla).
     if (loc.foto){
-      const img = photoDrop.querySelector('.photo-preview');
-      const hint = photoDrop.querySelector('.photo-hint');
       resolverUrlFoto(loc.foto).then(dataUrl => {
-        if (dataUrl){
-          img.src = dataUrl;
-          img.style.display = 'block';
-          hint.style.display = 'none';
-        } else {
-          hint.textContent = '⚠️ La foto no cargó — vuelve a pegarla';
-        }
+        if (dataUrl) mostrarFoto(dataUrl);
+        else ocultarFoto('⚠️ La foto no cargó — vuelve a pegarla');
       });
     }
+
+    // Botón "Cambiar": deja lista la zona para pegar una foto nueva que
+    // reemplaza a la actual (el pegado ya sobrescribe loc.foto siempre).
+    changeBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      photoDrop.focus();
+      showToast('Pega la nueva foto (Ctrl+V) para reemplazarla');
+    });
+
+    // Clic en la foto (fuera del botón "Cambiar") la muestra ampliada.
+    img.addEventListener('click', () => {
+      mostrarFotoAmpliada(img.src);
+    });
 
     photoDrop.addEventListener('paste', (e) => {
       const items = (e.clipboardData || window.clipboardData).items;
       for (const item of items){
         if (item.type.indexOf('image') === 0){
           const blob = item.getAsFile();
-          const img = photoDrop.querySelector('.photo-preview');
-          const hint = photoDrop.querySelector('.photo-hint');
+          hint.style.display = 'block';
           hint.textContent = 'Procesando imagen…';
+          img.style.display = 'none';
           comprimirImagenConLimite(blob).then(dataUrl => {
             loc.foto = dataUrl;
-            img.src = loc.foto;
-            img.style.display = 'block';
-            hint.style.display = 'none';
-            hint.textContent = 'Copia una imagen y presiona Ctrl+V aquí';
+            mostrarFoto(dataUrl);
           }).catch(err => {
             console.error(err);
-            hint.textContent = 'No se pudo procesar la imagen';
+            ocultarFoto('No se pudo procesar la imagen');
           });
           e.preventDefault();
           e.stopPropagation(); // no debe activar también el pegado global de fotos geolocalizadas
@@ -865,7 +1094,7 @@ function wireFichaEvents(popup, loc, marker){
     });
   }
 
-  btn.addEventListener('click', async () => {
+  async function guardarCambiosFicha(){
     const updated = { id: loc.id, foto: loc.foto || '' };
     EDITABLE_FIELDS.forEach(f => {
       const input = el.querySelector(`[data-field="${f}"]`);
@@ -879,6 +1108,7 @@ function wireFichaEvents(popup, loc, marker){
       if (result && result.foto) updated.foto = result.foto;
       Object.assign(loc, updated);
       if (marker) marker.setIcon(buildIcon(loc));
+      dirty = false;
       if (result && result.warning){
         // se guardó todo lo demás, pero la foto específicamente falló al subir
         msg.textContent = result.warning;
@@ -893,11 +1123,15 @@ function wireFichaEvents(popup, loc, marker){
       console.error(err);
       msg.textContent = "Error: " + (err.message || "no se pudo guardar");
       msg.className = "save-msg err";
+      throw err; // para que intentarCerrarFicha sepa que falló y no cierre a ciegas
     }finally{
       btn.disabled = false;
       btn.textContent = "💾 Guardar cambios";
     }
-  });
+  }
+  marker._fichaGuardar = guardarCambiosFicha;
+
+  btn.addEventListener('click', () => { guardarCambiosFicha(); });
 }
 
 // Las fotos se guardan como una URL que apunta a este mismo script
@@ -999,7 +1233,7 @@ async function openCreateForm(latlng){
     nombre, direccion,
     lat: latlng.lat, lng: latlng.lng,
     notas: "", ruido: "", soportePrincipal: "", auspiciador: "",
-    fechaInicio: "", fechaTermino: "", ofrecidoAuspiciador: "", objetivos: "", foto: "",
+    fechaInicio: "", fechaTermino: "", ofrecidoAuspiciador: "", objetivos: "", servicios: "", foto: "",
     superficieDisponible: ""
   };
 
@@ -1032,14 +1266,34 @@ const FILTER_FIELDS = [
   { key:'auspiciador', label:'Auspiciador', type:'select', options:() => [...new Set(locations.map(l=>l.auspiciador).filter(Boolean))] },
   { key:'superficieDisponible', label:'Superficie disp.', type:'text' },
   { key:'ofrecidoAuspiciador', label:'Auspiciador posible', type:'text' },
-  { key:'objetivos', label:'Objetivos', type:'select', multi:true, options:() => OBJETIVOS_OPCIONES }
+  { key:'objetivos', label:'Objetivos', type:'select', multi:true, options:() => OBJETIVOS_OPCIONES },
+  { key:'servicios', label:'Servicios', type:'select', multi:true, options:() => SERVICIOS_OPCIONES }
 ];
 let activeFilters = {};
+let capaVisible = null; // null = ambas capas · 'fotos' = solo puntos rojos · 'auspicios' = solo pines
 
 function buildFilterPanel(){
   const panel = document.getElementById('filterPanel');
-  panel.innerHTML = FILTER_FIELDS.map(f => renderFilterSection(f)).join('');
+  panel.innerHTML = renderCapaSection() + FILTER_FIELDS.map(f => renderFilterSection(f)).join('');
   wireFilterPanelEvents();
+}
+
+// Sección especial: no filtra por un campo de la ubicación, sino que
+// muestra/oculta capas completas del mapa (los pines vs. los puntos rojos).
+function renderCapaSection(){
+  const opciones = [
+    { val:'fotos', label:'Fotos' },
+    { val:'auspicios', label:'Auspicios' }
+  ];
+  const optionsHtml = opciones.map(o =>
+    `<span class="filter-chip-opt ${capaVisible===o.val?'selected':''}" data-capa="${o.val}">${o.label}</span>`
+  ).join('');
+  return `
+    <div class="filter-section ${capaVisible?'active':''}">
+      <div class="filter-section-title">Mostrar</div>
+      <div class="filter-section-options">${optionsHtml}</div>
+    </div>
+  `;
 }
 
 function renderFilterSection(f){
@@ -1069,7 +1323,16 @@ function renderFilterSection(f){
 
 function wireFilterPanelEvents(){
   const panel = document.getElementById('filterPanel');
-  panel.querySelectorAll('.filter-chip-opt').forEach(chip => {
+  panel.querySelectorAll('.filter-chip-opt[data-capa]').forEach(chip => {
+    chip.addEventListener('click', () => {
+      const val = chip.dataset.capa;
+      capaVisible = (capaVisible === val) ? null : val;
+      renderMarkers();
+      renderFotoMarkers();
+      buildFilterPanel();
+    });
+  });
+  panel.querySelectorAll('.filter-chip-opt[data-key]').forEach(chip => {
     chip.addEventListener('click', () => {
       const key = chip.dataset.key;
       const val = chip.dataset.val;
@@ -1090,6 +1353,7 @@ function wireFilterPanelEvents(){
 }
 
 function matchesFilters(loc){
+  if (capaVisible === 'fotos') return false; // solo se muestran los puntos rojos
   return FILTER_FIELDS.every(f => {
     const val = activeFilters[f.key];
     if (!val) return true;
@@ -1222,6 +1486,17 @@ function showToast(t){
   el.textContent = t;
   el.classList.add('show');
   setTimeout(() => el.classList.remove('show'), 2200);
+}
+
+// Ventana emergente con la foto ampliada; se cierra al hacer clic afuera de la imagen.
+function mostrarFotoAmpliada(src){
+  const overlay = document.createElement('div');
+  overlay.className = 'foto-lightbox-overlay';
+  overlay.innerHTML = `<img src="${src}" class="foto-lightbox-img" alt="Foto ampliada">`;
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) overlay.remove();
+  });
+  document.body.appendChild(overlay);
 }
 
 function escapeHtml(str){
