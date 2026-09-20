@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>CicloRecreoVía AUSPICIOS UBICACIONES</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css">
-<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiI+CiAgPHBhdGggZD0iTTE2IDJjLTYuNiAwLTEyIDUuNC0xMiAxMiAwIDkgMTIgMTYgMTIgMTZzMTItNyAxMi0xNmMwLTYuNi01LjQtMTItMTItMTJ6IiBmaWxsPSIjZGMyNjI2IiBzdHJva2U9IiNmZmZmZmYiIHN0cm9rZS13aWR0aD0iMS41Ii8+CiAgPGNpcmNsZSBjeD0iMTYiIGN5PSIxNCIgcj0iNSIgZmlsbD0iI2ZmZmZmZiIvPgo8L3N2Zz4K">
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exif-js/2.3.0/exif.js"></script>
 <style>
   :root{
@@ -87,7 +87,7 @@
      Sin cuña/indicador — se retiró por pedido del usuario. */
   .leaflet-popup-tip-container{ display:none !important; }
   .leaflet-popup-content{margin:0;width:560px !important;}
-  .leaflet-popup.foto-popup .leaflet-popup-content{width:auto !important;max-width:min(1300px, 88vw) !important;}
+  .leaflet-popup.foto-popup .leaflet-popup-content{width:auto !important;max-width:min(1080px, 78vw) !important;}
 
   .ficha{padding:16px;position:relative;}
   .ficha-close-btn{
@@ -251,7 +251,7 @@
   .foto-popup-content{padding:8px;}
   .foto-popup-wrap{display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap;}
   .foto-popup-img{
-    max-width:min(1040px, 82vw);max-height:min(1040px, 82vh);
+    max-width:min(832px, 65vw);max-height:min(832px, 65vh);
     border-radius:8px;display:block;object-fit:contain;
   }
   .foto-popup-side{width:210px;flex-shrink:0;display:flex;flex-direction:column;gap:8px;}
@@ -495,8 +495,20 @@ function buildFotoIcon(){
     html: '<div class="foto-point"></div>',
     className: 'foto-div-icon',
     iconSize: [26, 26],
-    iconAnchor: [13, 13]
+    iconAnchor: [13, 13],
+    popupAnchor: [570, 0]
   });
+}
+
+// Al hacer clic en un punto rojo, el mapa lo deja centrado verticalmente y
+// muy cerca del borde izquierdo (3% del ancho), dejando todo el resto de la
+// pantalla libre para la foto ampliada y el panel de Conceptos.
+function centrarPinEnPantallaFoto(marker){
+  const size = map.getSize();
+  const targetPoint = L.point(size.x * 0.03, size.y * 0.50);
+  const currentPoint = map.latLngToContainerPoint(marker.getLatLng());
+  const delta = currentPoint.subtract(targetPoint);
+  map.panBy(delta, { animate: true });
 }
 
 function renderFotoMarkers(){
@@ -504,8 +516,12 @@ function renderFotoMarkers(){
   if (capaVisible === 'auspicios') return; // solo se muestran los pines
   fotoPoints.forEach(fp => {
     const marker = L.marker([fp.lat, fp.lng], { icon: buildFotoIcon() });
-    marker.bindPopup(`<div class="foto-popup-content">Cargando…</div>`, { maxWidth: 300, className: 'foto-popup' });
+    marker.bindPopup(`<div class="foto-popup-content">Cargando…</div>`, {
+      maxWidth: 300, className: 'foto-popup', autoPan: false
+    });
+    marker.on('click', () => centrarPinEnPantallaFoto(marker));
     marker.on('popupopen', (e) => {
+      limitarAlturaFicha(e.popup);
       const container = e.popup.getElement()?.querySelector('.foto-popup-content');
       if (!container) return;
       resolverUrlFoto(fp.foto).then(dataUrl => {
@@ -751,6 +767,8 @@ function renderMarkers(){
       selectedMarker = marker;
       limitarAlturaFicha(e.popup);
       wireFichaEvents(e.popup, loc, marker);
+      const fichaEl = e.popup.getElement();
+      if (fichaEl) asegurarFichaVisible(fichaEl);
     });
     marker.on('popupclose', () => {
       const elm = marker.getElement();
@@ -797,6 +815,19 @@ function limitarAlturaFicha(popup){
   wrapper.style.overflowY = 'auto';
 }
 
+// Si el contenido de la ficha crece (por ejemplo al desplegar Objetivos o
+// Servicios) y su borde superior queda tapado por el header, desplaza el
+// mapa lo justo para dejarla completamente visible.
+function asegurarFichaVisible(el){
+  const headerH = document.querySelector('header').offsetHeight;
+  const margen = 12;
+  const rect = el.getBoundingClientRect();
+  if (rect.top < headerH + margen){
+    const faltante = (headerH + margen) - rect.top;
+    map.panBy([0, -faltante], { animate: true });
+  }
+}
+
 // Al hacer clic en un pin, el mapa se desplaza para dejarlo centrado
 // verticalmente y al 40% del ancho de la pantalla (de izquierda a derecha),
 // dejando espacio a la derecha para la ficha.
@@ -806,6 +837,27 @@ function centrarPinEnPantalla(marker){
   const currentPoint = map.latLngToContainerPoint(marker.getLatLng());
   const delta = currentPoint.subtract(targetPoint);
   map.panBy(delta, { animate: true });
+}
+
+// Al aplicar/quitar un filtro, el mapa se ajusta para que los pines
+// resultantes queden a la vista: si queda uno solo, se centra igual que al
+// hacer clic (40%/50%); si quedan varios, se hace zoom para que todos entren,
+// dejando margen para no quedar tapados por el header ni el panel de filtros.
+function ajustarVistaSegunFiltros(){
+  const visibles = locations.filter(matchesFilters);
+  if (!visibles.length) return;
+  if (visibles.length === 1){
+    if (visibles[0].__marker) centrarPinEnPantalla(visibles[0].__marker);
+    return;
+  }
+  const bounds = L.latLngBounds(visibles.map(l => [l.lat, l.lng]));
+  const headerH = document.querySelector('header').offsetHeight;
+  const panelW = document.getElementById('filterPanel').offsetWidth;
+  map.fitBounds(bounds, {
+    paddingTopLeft: L.point(40, headerH + 30),
+    paddingBottomRight: L.point(panelW + 40, 40),
+    animate: true
+  });
 }
 
 /* =========================================================
@@ -1013,11 +1065,17 @@ function wireFichaEvents(popup, loc, marker){
   // Objetivos y Servicios: desplegables de selección múltiple (no
   // excluyentes). El resumen muestra lo ya elegido separado por comas; al
   // hacer clic se despliegan las demás opciones para seguir marcando.
-  el.querySelectorAll('.multiselect-dropdown').forEach(dropdown => {
+  // Solo uno puede estar abierto a la vez (abrir uno cierra los demás), y
+  // cada vez que el contenido crece se revisa que no quede tapado por el header.
+  const todosLosDropdowns = el.querySelectorAll('.multiselect-dropdown');
+  todosLosDropdowns.forEach(dropdown => {
     const summary = dropdown.querySelector('.multiselect-summary');
     const hiddenInput = el.querySelector(`[data-field="${dropdown.dataset.campo}"]`);
     summary.addEventListener('click', () => {
-      dropdown.classList.toggle('open');
+      const yaEstabaAbierto = dropdown.classList.contains('open');
+      todosLosDropdowns.forEach(d => d.classList.remove('open'));
+      if (!yaEstabaAbierto) dropdown.classList.add('open');
+      asegurarFichaVisible(el);
     });
     dropdown.querySelectorAll('input[type="checkbox"]').forEach(cb => {
       cb.addEventListener('change', () => {
@@ -1330,6 +1388,7 @@ function wireFilterPanelEvents(){
       renderMarkers();
       renderFotoMarkers();
       buildFilterPanel();
+      ajustarVistaSegunFiltros();
     });
   });
   panel.querySelectorAll('.filter-chip-opt[data-key]').forEach(chip => {
@@ -1340,6 +1399,7 @@ function wireFilterPanelEvents(){
       else activeFilters[key] = val;
       renderMarkers();
       buildFilterPanel();
+      ajustarVistaSegunFiltros();
     });
   });
   panel.querySelectorAll('.filter-text-input').forEach(input => {
@@ -1347,6 +1407,7 @@ function wireFilterPanelEvents(){
       const v = input.value.trim();
       if (v) activeFilters[input.dataset.key] = v; else delete activeFilters[input.dataset.key];
       renderMarkers();
+      ajustarVistaSegunFiltros();
       // No reconstruimos el panel aquí para no perder el foco mientras se escribe.
     });
   });
